@@ -125,9 +125,9 @@ static bool document_gather_paragraphs(document *doc, const char *text, uint64_t
             return false;
         }
         cursor = end;
-        if (written == 0u) {
-            continue;
-        }
+        /* ocr_next_paragraph only returns non-blank spans, so normalization
+         * always keeps at least one character. */
+        ASSERT(written > 0u);
         if (paragraphs->count >= DOCUMENT_MAX_PARAGRAPHS_PER_PAGE) {
             return false;
         }
@@ -147,11 +147,12 @@ static bool document_next_starts_lowercase(const document *doc, const paragraph_
         return false;
     }
     const paragraph_record *next = &paragraphs->records[index + 1u];
-    if (next->text_length == 0u) {
+    ASSERT(next->text_length > 0u);
+    char first = doc->text[next->text_offset];
+    if (first < 'a') {
         return false;
     }
-    char first = doc->text[next->text_offset];
-    return first >= 'a' && first <= 'z';
+    return first <= 'z';
 }
 
 static bool document_add_paragraphs(document *doc, const paragraph_list *paragraphs, uint64_t page_text_offset, uint64_t page_text_length, bool *has_printed_number, uint32_t *printed_number, bool *printed_is_roman) {

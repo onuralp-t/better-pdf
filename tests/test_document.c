@@ -218,9 +218,164 @@ static void test_document_classifies_tables_and_math(void) {
     CHECK_U64_EQ(block_at(doc, 0, 2)->kind, BLOCK_PARAGRAPH);
 }
 
+static void document_fill_page(document *doc, uint32_t page_index, uint32_t paragraphs) {
+    static char text[8192];
+    uint64_t used = 0;
+    for (uint32_t index = 0; index < paragraphs; index += 1) {
+        const char *line = "Body text.\n\n";
+        memcpy(text + used, line, strlen(line));
+        used += (uint64_t)strlen(line);
+    }
+    CHECK(document_add_page(doc, page_index, text, used));
+}
+
+static void test_document_rejects_page_when_blocks_are_full(void) {
+    /* Two pages share 256 blocks. A page that starts with a page number, a
+     * footnote, a table, or a heading must still be refused when the block
+     * storage is already full, rather than write past it. */
+    const struct {
+        const char *text;
+    } cases[] = {
+        { "139\n\nBody.\n" },
+        { "1 note\xC2\xB9.\n\nBody.\n" },
+        { "<table><tr><td>1</td></tr></table>\n\nBody.\n" },
+        { "TITLE ONE\n\nBody text here.\n" },
+    };
+    for (uint32_t index = 0; index < (uint32_t)(sizeof cases / sizeof cases[0]); index += 1) {
+        document *doc = make_document(2);
+        document_fill_page(doc, 0, 256u);
+        CHECK_U64_EQ(doc->block_count, 256u);
+        CHECK(!document_add_page(doc, 1, cases[index].text, (uint64_t)strlen(cases[index].text)));
+    }
+}
+
+static void test_document_rejects_heading_merge_overflow(void) {
+    static document instance;
+    CHECK(document_init(&instance, document_memory, sizeof document_memory, 2, 20));
+    const char *text = "TITLE\n\n(a subtitle)\n\n";
+    CHECK(!document_add_page(&instance, 0, text, (uint64_t)strlen(text)));
+}
+
+static void test_document_ignores_overlong_running_heads(void) {
+    static char long_head[301];
+    for (uint32_t index = 0; index + 10u < sizeof long_head; index += 10u) {
+        memcpy(long_head + index, "long head ", 10u);
+    }
+    long_head[sizeof long_head - 1u] = '\0';
+
+    document *doc = make_document(TEST_PAGE_CAPACITY);
+    const char *pages[] = { "Contents", long_head, "Contents", "Contents" };
+    const char *bodies[] = { "Alpha body.", "Beta body.", "Gamma body.", "Delta body." };
+    for (uint32_t index = 0; index < 4u; index += 1) {
+        char text[1024];
+        int length = snprintf(text, sizeof text, "%s\n\n%s\n", pages[index], bodies[index]);
+        CHECK(length > 0 && (uint64_t)length < sizeof text);
+        CHECK(document_add_page(doc, index, text, (uint64_t)length));
+    }
+    CHECK(document_finalize(doc, "fallback", NULL));
+    /* The three identical heads are running heads. The over-long page neither
+     * matches them nor becomes one itself. */
+    CHECK_U64_EQ(block_at(doc, 2, 0)->kind, BLOCK_RUNNING_HEAD);
+    CHECK_U64_EQ(block_at(doc, 3, 0)->kind, BLOCK_RUNNING_HEAD);
+    CHECK_U64_EQ(block_at(doc, 0, 0)->kind, BLOCK_PARAGRAPH);
+    CHECK_U64_EQ(block_at(doc, 1, 0)->kind, BLOCK_PARAGRAPH);
+}
+
+static void test_document_running_heads_skip_blank_pages(void) {
+    document *doc = make_document(TEST_PAGE_CAPACITY);
+    const char *pages[] = { "Contents\n\nAlpha body.\n", "", "Contents\n\nBeta body.\n", "Contents\n\nGamma body.\n" };
+    for (uint32_t index = 0; index < 4u; index += 1) {
+        CHECK(document_add_page(doc, index, pages[index], (uint64_t)strlen(pages[index])));
+    }
+    CHECK(document_finalize(doc, "fallback", NULL));
+    CHECK_U64_EQ(block_at(doc, 2, 0)->kind, BLOCK_RUNNING_HEAD);
+    CHECK_U64_EQ(block_at(doc, 3, 0)->kind, BLOCK_RUNNING_HEAD);
+    CHECK_U64_EQ(block_at(doc, 0, 0)->kind, BLOCK_PARAGRAPH);
+}
+
+static void test_document_truncates_long_titles(void) {
+    static char long_text[600];
+    memset(long_text, 't', sizeof long_text - 1u);
+    long_text[sizeof long_text - 1u] = '\0';
+
+    const char *pages[] = { "Body text.\n" };
+    const uint32_t indices[] = { 0 };
+    (void)indices;
+
+    /* The --title option. */
+    document *doc = make_document(TEST_PAGE_CAPACITY);
+    CHECK(document_add_page(doc, 0, pages[0], (uint64_t)strlen(pages[0])));
+    CHECK(document_finalize(doc, "fallback", long_text));
+    CHECK_U64_EQ(doc->title_length, 511u);
+    CHECK_U64_EQ((uint64_t)strlen(document_title(doc)), 511u);
+
+    /* The file name fallback. */
+    doc = make_document(TEST_PAGE_CAPACITY);
+    CHECK(document_add_page(doc, 0, pages[0], (uint64_t)strlen(pages[0])));
+    CHECK(document_finalize(doc, long_text, NULL));
+    CHECK_U64_EQ(doc->title_length, 511u);
+
+    /* A chapter heading merged with a long parenthetical subtitle. */
+    static char page_text[1024];
+    int length = snprintf(page_text, sizeof page_text, "CHAPTER 1\n\n(%.*s)\n\nBody text.\n", 600, long_text);
+    CHECK(length > 0 && (uint64_t)length < sizeof page_text);
+    doc = make_document(TEST_PAGE_CAPACITY);
+    CHECK(document_add_page(doc, 0, page_text, (uint64_t)length));
+    CHECK(document_finalize(doc, "fallback", NULL));
+    CHECK_U64_EQ(doc->title_length, 511u);
+}
+
+static void test_document_title_must_fit_the_pool(void) {
+    static document instance;
+    CHECK(document_init(&instance, document_memory, sizeof document_memory, 1, 8));
+    const char *text = "abcd\n";
+    CHECK(document_add_page(&instance, 0, text, (uint64_t)strlen(text)));
+    CHECK(!document_finalize(&instance, "xyzw", NULL));
+}
+
+static void test_document_lowercase_continuation_is_body_text(void) {
+    /* The paragraph after a heading starts lowercase, so it continues the
+     * heading's sentence and must not become a second heading. */
+    document *doc = make_document(TEST_PAGE_CAPACITY);
+    const char *text = "CHAPTER 1\n\ncontinued prose that follows.\n";
+    CHECK(document_add_page(doc, 0, text, (uint64_t)strlen(text)));
+    CHECK(document_finalize(doc, "fallback", NULL));
+    CHECK_U64_EQ(block_at(doc, 0, 0)->kind, BLOCK_HEADING);
+    CHECK_U64_EQ(block_at(doc, 0, 1)->kind, BLOCK_PARAGRAPH);
+}
+
+static void test_document_heading_at_page_end(void) {
+    /* A heading that is the last paragraph on its page has no subtitle to
+     * merge, and must still be classified as a heading. */
+    document *doc = make_document(TEST_PAGE_CAPACITY);
+    const char *text = "Body text.\n\nFINAL TITLE\n";
+    CHECK(document_add_page(doc, 0, text, (uint64_t)strlen(text)));
+    CHECK(document_finalize(doc, "fallback", NULL));
+    CHECK_U64_EQ(block_at(doc, 0, 0)->kind, BLOCK_PARAGRAPH);
+    CHECK_U64_EQ(block_at(doc, 0, 1)->kind, BLOCK_HEADING);
+}
+
+static void test_document_running_heads_stop_at_different_head(void) {
+    document *doc = make_document(TEST_PAGE_CAPACITY);
+    const char *pages[] = {
+        "Contents\n\nAlpha body.\n",
+        "Contents\n\nBeta body.\n",
+        "Contents\n\nGamma body.\n",
+        "Preface\n\nDelta body.\n",
+    };
+    for (uint32_t index = 0; index < 4u; index += 1) {
+        CHECK(document_add_page(doc, index, pages[index], (uint64_t)strlen(pages[index])));
+    }
+    CHECK(document_finalize(doc, "fallback", NULL));
+    CHECK_U64_EQ(block_at(doc, 1, 0)->kind, BLOCK_RUNNING_HEAD);
+    CHECK_U64_EQ(block_at(doc, 2, 0)->kind, BLOCK_RUNNING_HEAD);
+    CHECK_U64_EQ(block_at(doc, 3, 0)->kind, BLOCK_PARAGRAPH);
+}
+
 void register_document_tests(void) {
     test_register("document_basic_page", test_document_basic_page);
     test_register("document_chapters", test_document_chapters);
+    test_register("document_lowercase_continuation_is_body_text", test_document_lowercase_continuation_is_body_text);
     test_register("document_demotes_second_level_one_heading", test_document_demotes_second_level_one_heading);
     test_register("document_running_heads", test_document_running_heads);
     test_register("document_footnotes", test_document_footnotes);
@@ -235,4 +390,12 @@ void register_document_tests(void) {
     test_register("document_rejects_text_overflow", test_document_rejects_text_overflow);
     test_register("document_finalize_requires_pages", test_document_finalize_requires_pages);
     test_register("document_classifies_tables_and_math", test_document_classifies_tables_and_math);
+    test_register("document_rejects_page_when_blocks_are_full", test_document_rejects_page_when_blocks_are_full);
+    test_register("document_rejects_heading_merge_overflow", test_document_rejects_heading_merge_overflow);
+    test_register("document_ignores_overlong_running_heads", test_document_ignores_overlong_running_heads);
+    test_register("document_running_heads_skip_blank_pages", test_document_running_heads_skip_blank_pages);
+    test_register("document_heading_at_page_end", test_document_heading_at_page_end);
+    test_register("document_running_heads_stop_at_different_head", test_document_running_heads_stop_at_different_head);
+    test_register("document_truncates_long_titles", test_document_truncates_long_titles);
+    test_register("document_title_must_fit_the_pool", test_document_title_must_fit_the_pool);
 }
