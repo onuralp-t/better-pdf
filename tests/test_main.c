@@ -84,6 +84,7 @@ int main(void) {
     register_http_message_tests();
     register_gguf_tests();
     register_ocr_text_tests();
+    register_document_tests();
 
     for (uint32_t index = 0; index < test_entry_count; index += 1) {
         uint32_t before = test_failure_count;

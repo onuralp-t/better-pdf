@@ -29,5 +29,6 @@ void register_json_tests(void);
 void register_http_message_tests(void);
 void register_gguf_tests(void);
 void register_ocr_text_tests(void);
+void register_document_tests(void);
 
 #endif
