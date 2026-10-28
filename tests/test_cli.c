@@ -155,7 +155,9 @@ static void test_cli_body_pt_parsing(void) {
     const char *fraction[] = { "better-pdf", "--body-pt", "12.25", "in.pdf", "out.pdf" };
     CHECK(parse(5, fraction, &config) == CLI_STATUS_ERROR);
 
-    const char *bad[] = { "0.4", "24.1", "x", "10.", ".5", "-3", "" };
+    /* The whole part is capped at 1000, so a fifth digit has to stop the scan,
+     * and the character after the whole part must be the decimal point. */
+    const char *bad[] = { "0.4", "24.1", "x", "10.", ".5", "-3", "", "99999", "10x", "10.x" };
     for (uint32_t index = 0; index < (uint32_t)(sizeof bad / sizeof bad[0]); index += 1) {
         const char *arguments_bad[] = { "better-pdf", "--body-pt", bad[index], "in.pdf", "out.pdf" };
         CHECK(parse(5, arguments_bad, &config) == CLI_STATUS_ERROR);
@@ -176,6 +178,28 @@ static void test_cli_usage_text(void) {
     fclose(sink);
 }
 
+static void test_cli_no_paths_fails(void) {
+    const char *arguments[] = { "better-pdf" };
+    cli_config config;
+    CHECK(parse(1, arguments, &config) == CLI_STATUS_ERROR);
+}
+
+static void test_cli_unknown_option_with_value_fails(void) {
+    /* An unknown long option is reported even when a value follows it. */
+    const char *arguments[] = { "better-pdf", "--wat", "5", "in.pdf", "out.pdf" };
+    cli_config config;
+    CHECK(parse(5, arguments, &config) == CLI_STATUS_ERROR);
+}
+
+static void test_cli_dash_is_positional(void) {
+    /* A lone dash is a file name, not an option. */
+    const char *arguments[] = { "better-pdf", "-", "out.pdf" };
+    cli_config config;
+    CHECK(parse(3, arguments, &config) == CLI_STATUS_OK);
+    CHECK_STR_EQ(config.input_path, "-");
+    CHECK_STR_EQ(config.output_path, "out.pdf");
+}
+
 void register_cli_tests(void) {
     test_register("cli_defaults", test_cli_defaults);
     test_register("cli_all_options", test_cli_all_options);
@@ -193,4 +217,7 @@ void register_cli_tests(void) {
     test_register("cli_max_pixels_validation", test_cli_max_pixels_validation);
     test_register("cli_body_pt_parsing", test_cli_body_pt_parsing);
     test_register("cli_usage_text", test_cli_usage_text);
+    test_register("cli_no_paths_fails", test_cli_no_paths_fails);
+    test_register("cli_unknown_option_with_value_fails", test_cli_unknown_option_with_value_fails);
+    test_register("cli_dash_is_positional", test_cli_dash_is_positional);
 }
