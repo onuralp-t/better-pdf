@@ -10,7 +10,9 @@ echo usage: scripts\build_tests.bat [debug^|release]
 exit /b 2
 
 :flags_debug
-set FLAGS=-Og -g3 -DBETTER_PDF_DEBUG
+rem AddressSanitizer and UndefinedBehaviorSanitizer stay on while developing,
+rem as STYLE.md asks.
+set FLAGS=-Og -g3 -DBETTER_PDF_DEBUG -fsanitize=address,undefined
 goto compile
 
 :flags_release

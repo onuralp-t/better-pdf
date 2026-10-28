@@ -15,9 +15,10 @@ echo usage: scripts\build.bat [debug^|release]
 exit /b 2
 
 :flags_debug
-rem /DEBUG writes better-pdf.pdb next to the exe so a debugger gets file, line,
-rem and expression information for the trap.
-set FLAGS=-Og -g3 -DBETTER_PDF_DEBUG -Wl,/DEBUG
+rem AddressSanitizer and UndefinedBehaviorSanitizer stay on while developing,
+rem as STYLE.md asks. /DEBUG writes better-pdf.pdb next to the exe so a debugger
+rem gets file, line, and expression information for the trap.
+set FLAGS=-Og -g3 -DBETTER_PDF_DEBUG -fsanitize=address,undefined -Wl,/DEBUG
 goto compile
 
 :flags_release
