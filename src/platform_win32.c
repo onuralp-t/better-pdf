@@ -10,13 +10,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PLATFORM_PATH_CAPACITY 4096u
-
 static bool platform_path_exists_wide(const wchar_t *path) {
     return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
 }
 
-static bool utf8_to_utf16(const char *utf8, wchar_t *output, uint32_t capacity) {
+bool platform_utf8_to_utf16(const char *utf8, wchar_t *output, uint32_t capacity) {
     ASSERT(utf8 != NULL);
     ASSERT(output != NULL);
     int converted = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, output, (int)capacity);
@@ -101,7 +99,7 @@ bool platform_replace_file(const char *from_path, const char *to_path) {
     ASSERT(to_path != NULL);
     wchar_t wide_from[PLATFORM_PATH_CAPACITY];
     wchar_t wide_to[PLATFORM_PATH_CAPACITY];
-    if (!utf8_to_utf16(from_path, wide_from, PLATFORM_PATH_CAPACITY) || !utf8_to_utf16(to_path, wide_to, PLATFORM_PATH_CAPACITY)) {
+    if (!platform_utf8_to_utf16(from_path, wide_from, PLATFORM_PATH_CAPACITY) || !platform_utf8_to_utf16(to_path, wide_to, PLATFORM_PATH_CAPACITY)) {
         return false;
     }
     return MoveFileExW(wide_from, wide_to, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
@@ -114,7 +112,7 @@ bool platform_read_file(const char *path, char *buffer, uint64_t capacity, uint6
     ASSERT(found != NULL);
 
     wchar_t wide_path[PLATFORM_PATH_CAPACITY];
-    if (!utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
+    if (!platform_utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
         return false;
     }
 
@@ -149,7 +147,7 @@ bool platform_write_file(const char *path, const char *data, uint64_t length) {
     ASSERT(data != NULL);
 
     wchar_t wide_path[PLATFORM_PATH_CAPACITY];
-    if (!utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
+    if (!platform_utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
         return false;
     }
 
@@ -165,7 +163,7 @@ bool platform_write_file(const char *path, const char *data, uint64_t length) {
 bool platform_path_exists(const char *path) {
     ASSERT(path != NULL);
     wchar_t wide_path[PLATFORM_PATH_CAPACITY];
-    if (!utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
+    if (!platform_utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
         return false;
     }
     return GetFileAttributesW(wide_path) != INVALID_FILE_ATTRIBUTES;
@@ -175,7 +173,7 @@ bool platform_file_size(const char *path, uint64_t *size) {
     ASSERT(path != NULL);
     ASSERT(size != NULL);
     wchar_t wide_path[PLATFORM_PATH_CAPACITY];
-    if (!utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
+    if (!platform_utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
         return false;
     }
     WIN32_FILE_ATTRIBUTE_DATA data;
@@ -191,7 +189,7 @@ bool platform_absolute_path(const char *path, char *buffer, uint64_t capacity) {
     ASSERT(buffer != NULL);
     wchar_t wide_path[PLATFORM_PATH_CAPACITY];
     wchar_t full_path[PLATFORM_PATH_CAPACITY];
-    if (!utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
+    if (!platform_utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
         return false;
     }
     DWORD length = GetFullPathNameW(wide_path, PLATFORM_PATH_CAPACITY, full_path, NULL);
@@ -206,7 +204,7 @@ bool platform_create_directories(const char *path) {
     ASSERT(path != NULL);
 
     wchar_t buffer[PLATFORM_PATH_CAPACITY];
-    if (!utf8_to_utf16(path, buffer, PLATFORM_PATH_CAPACITY)) {
+    if (!platform_utf8_to_utf16(path, buffer, PLATFORM_PATH_CAPACITY)) {
         return false;
     }
     uint64_t length = (uint64_t)wcslen(buffer);
@@ -239,10 +237,10 @@ bool platform_copy_file(const char *from_path, const char *to_path) {
     ASSERT(to_path != NULL);
     wchar_t wide_from[PLATFORM_PATH_CAPACITY];
     wchar_t wide_to[PLATFORM_PATH_CAPACITY];
-    if (!utf8_to_utf16(from_path, wide_from, PLATFORM_PATH_CAPACITY)) {
+    if (!platform_utf8_to_utf16(from_path, wide_from, PLATFORM_PATH_CAPACITY)) {
         return false;
     }
-    if (!utf8_to_utf16(to_path, wide_to, PLATFORM_PATH_CAPACITY)) {
+    if (!platform_utf8_to_utf16(to_path, wide_to, PLATFORM_PATH_CAPACITY)) {
         return false;
     }
     return CopyFileW(wide_from, wide_to, FALSE) != 0;
@@ -251,7 +249,7 @@ bool platform_copy_file(const char *from_path, const char *to_path) {
 bool platform_remove_file(const char *path) {
     ASSERT(path != NULL);
     wchar_t wide_path[PLATFORM_PATH_CAPACITY];
-    if (!utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
+    if (!platform_utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
         return false;
     }
     return DeleteFileW(wide_path) != 0;
@@ -260,7 +258,7 @@ bool platform_remove_file(const char *path) {
 bool platform_remove_directory(const char *path) {
     ASSERT(path != NULL);
     wchar_t wide_path[PLATFORM_PATH_CAPACITY];
-    if (!utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
+    if (!platform_utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
         return false;
     }
     return RemoveDirectoryW(wide_path) != 0;

@@ -116,6 +116,10 @@ static bool pipeline_recognize_page(uint32_t max_pixels, const pipeline_buffers 
     return true;
 }
 
+static const char *pipeline_page_word(uint32_t count) {
+    return count == 1u ? "page" : "pages";
+}
+
 pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, const pipeline_buffers *buffers, pdf_input *pdf) {
     ASSERT(config != NULL);
     ASSERT(buffers != NULL);
@@ -230,7 +234,7 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
             ERROR("something already answers on port %u; close it, choose another --port, or pass --server-url to reuse it", config->port);
             return PIPELINE_STATUS_ERROR;
         }
-        LOG("starting the OCR server for %u uncached pages", missing);
+        LOG("starting the OCR server for %u uncached %s", missing, pipeline_page_word(missing));
         if (!server_process_start(&server, absolute_executable, absolute_model, absolute_mmproj, config->port, resolved_work_dir, error, sizeof error)) {
             ERROR("%s", error);
             return PIPELINE_STATUS_ERROR;
@@ -242,7 +246,7 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
         }
         LOG("the OCR server is ready; its output is in %s\\llama-server.log", resolved_work_dir);
     } else if (missing > 0u) {
-        LOG("using the OCR server at %s for %u uncached pages", server_url, missing);
+        LOG("using the OCR server at %s for %u uncached %s", server_url, missing, pipeline_page_word(missing));
     } else {
         LOG("all %u pages are cached; no OCR server is needed", last_index - first_index + 1u);
     }

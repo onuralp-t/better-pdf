@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <wchar.h>
+
+#define PLATFORM_PATH_CAPACITY 4096u
 
 /*
  * Thin Win32 adapters. This layer contains no policy decisions: every failure
@@ -35,6 +38,11 @@ void platform_job_terminate(void);
 /* Installs the console handler for Ctrl+C and Ctrl+Break. The handler reports
  * the interruption, terminates the job, and exits with code 130. */
 bool platform_install_interrupt_handler(void);
+
+/* Converts UTF-8 to UTF-16. Child processes must be given wide command lines:
+ * a command line built as ANSI mangles any path that is not in the ANSI code
+ * page, and such a path then silently fails to open. */
+bool platform_utf8_to_utf16(const char *utf8, wchar_t *output, uint32_t capacity);
 
 /* Replaces GetCommandLineW()'s arguments as UTF-8. Returns the argument count,
  * or 0 when conversion fails or the storage is too small. */

@@ -13,18 +13,27 @@ static bool typst_run_process(const char *command, const char *work_dir, const c
     ASSERT(command != NULL);
     ASSERT(log_path != NULL);
 
+    wchar_t wide_command[2048];
+    wchar_t wide_log_path[1024];
+    wchar_t wide_work_dir[PLATFORM_PATH_CAPACITY];
+    if (!platform_utf8_to_utf16(command, wide_command, 2048u) ||
+        !platform_utf8_to_utf16(log_path, wide_log_path, 1024u) ||
+        !platform_utf8_to_utf16(work_dir, wide_work_dir, PLATFORM_PATH_CAPACITY)) {
+        (void)snprintf(error, (size_t)error_capacity, "the typst command line or paths are too long");
+        return false;
+    }
     SECURITY_ATTRIBUTES inherit;
     inherit.nLength = sizeof inherit;
     inherit.lpSecurityDescriptor = NULL;
     inherit.bInheritHandle = TRUE;
-    HANDLE log = CreateFileA(log_path, GENERIC_WRITE, FILE_SHARE_READ, &inherit, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE log = CreateFileW(wide_log_path, GENERIC_WRITE, FILE_SHARE_READ, &inherit, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (log == INVALID_HANDLE_VALUE) {
         (void)snprintf(error, (size_t)error_capacity, "could not create %s", log_path);
         return false;
     }
-    HANDLE input = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &inherit, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE input = CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &inherit, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
-    STARTUPINFOA startup;
+    STARTUPINFOW startup;
     PROCESS_INFORMATION info;
     memset(&startup, 0, sizeof startup);
     memset(&info, 0, sizeof info);
@@ -34,7 +43,7 @@ static bool typst_run_process(const char *command, const char *work_dir, const c
     startup.hStdOutput = log;
     startup.hStdError = log;
 
-    BOOL created = CreateProcessA(NULL, (char *)command, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, work_dir, &startup, &info);
+    BOOL created = CreateProcessW(NULL, wide_command, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, wide_work_dir, &startup, &info);
     CloseHandle(log);
     if (input != INVALID_HANDLE_VALUE) {
         CloseHandle(input);

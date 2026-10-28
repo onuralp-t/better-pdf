@@ -68,6 +68,9 @@ Options:
 | `--no-outline` | omit the table of contents |
 | `--help` | usage |
 
+Paths may contain spaces and non-ASCII characters: every file is opened with
+wide Win32 calls, and child processes receive wide command lines.
+
 Exit codes: `0` success, `1` bad arguments or unreadable input, `2` a pipeline
 step failed, `3` an internal invariant was violated (the assertion aborts),
 `130` the run was interrupted.
