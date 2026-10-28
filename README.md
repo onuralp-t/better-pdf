@@ -144,6 +144,14 @@ pdfium binding, HTTP client, child processes, and the orchestrator are exercised
 by the end-to-end run instead; they contain no decision logic beyond error
 reporting.
 
+Product files currently reach 94.8% of lines, 88.0% of branches, and 68.8%
+of MC/DC conditions; `arena.c`, `base64.c`, `geometry.c`, and `log.c` are fully
+covered, and `png.c` has no uncovered line. What is left is mostly defensive checks
+in the JSON, HTTP, GGUF, and text parsers that no well-formed or plausible
+malformed input can reach, plus the Win32, pdfium, socket, and process glue
+that only the end-to-end run exercises. `asserts.c` is excluded because its
+only code path is a deliberate abort.
+
 `scripts\coverage.bat` prints branch and MC/DC summaries. The interactive
 `llvm-cov show` view is one command away:
 

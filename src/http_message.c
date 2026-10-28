@@ -33,7 +33,8 @@ static bool http_equals_ignore_case(const uint8_t *data, uint64_t length, const 
 
 static bool http_contains_ignore_case(const uint8_t *data, uint64_t length, const char *text) {
     uint64_t text_length = (uint64_t)strlen(text);
-    if (text_length == 0 || text_length > length) {
+    ASSERT(text_length > 0);
+    if (text_length > length) {
         return false;
     }
     for (uint64_t start = 0; start + text_length <= length; start += 1) {
@@ -51,7 +52,7 @@ uint64_t http_request_build(char *output, uint64_t output_capacity, const char *
     ASSERT(body != NULL);
 
     char header[HTTP_REQUEST_HEADER_CAPACITY];
-    int header_length = snprintf(header, sizeof header,
+    uint64_t header_length = (uint64_t)snprintf(header, sizeof header,
                                  "POST %s HTTP/1.1\r\n"
                                  "Host: %s:%u\r\n"
                                  "Content-Type: application/json\r\n"
@@ -59,20 +60,17 @@ uint64_t http_request_build(char *output, uint64_t output_capacity, const char *
                                  "Connection: close\r\n"
                                  "\r\n",
                                  path, host, (unsigned)port, (unsigned long long)body_length);
-    if (header_length < 0) {
+    if (header_length >= (uint64_t)sizeof header) {
         return 0;
     }
-    if ((uint64_t)header_length >= (uint64_t)sizeof header) {
+    if (header_length + body_length > output_capacity) {
         return 0;
     }
-    if ((uint64_t)header_length + body_length > output_capacity) {
-        return 0;
-    }
-    memcpy(output, header, (uint64_t)header_length);
+    memcpy(output, header, (size_t)header_length);
     if (body_length > 0) {
-        memcpy(output + (uint64_t)header_length, body, (size_t)body_length);
+        memcpy(output + header_length, body, (size_t)body_length);
     }
-    return (uint64_t)header_length + body_length;
+    return header_length + body_length;
 }
 
 bool http_response_head_parse(const uint8_t *data, uint64_t length, http_response_head *head) {

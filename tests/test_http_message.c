@@ -171,6 +171,46 @@ static void test_http_chunked_decode_rejects_malformed(void) {
     CHECK(!http_chunked_decode((const uint8_t *)size_without_crlf, text_length(size_without_crlf), output, sizeof output, &written));
 }
 
+
+static void test_http_head_uppercase_and_unchunked(void) {
+    const char *response =
+        "HTTP/1.0 404 Not Found\r\n"
+        "CONTENT-LENGTH: 0\r\n"
+        "TRANSFER-ENCODING: gzipped\r\n"
+        "\r\n";
+    http_response_head head;
+    CHECK(http_response_head_parse((const uint8_t *)response, text_length(response), &head));
+    CHECK_U64_EQ(head.status_code, 404u);
+    CHECK(head.has_content_length);
+    CHECK_U64_EQ(head.content_length, 0u);
+    CHECK(!head.chunked);
+}
+
+static void test_http_head_rejects_bad_status_lines(void) {
+    http_response_head head;
+    const char *short_line = "H\r\n\r\n";
+    CHECK(!http_response_head_parse((const uint8_t *)short_line, text_length(short_line), &head));
+    const char *no_minor = "HTTP/11\r\n\r\n";
+    CHECK(!http_response_head_parse((const uint8_t *)no_minor, text_length(no_minor), &head));
+    const char *no_space = "HTTP/1.1X200 OK\r\n\r\n";
+    CHECK(!http_response_head_parse((const uint8_t *)no_space, text_length(no_space), &head));
+    const char *bad_first = "HTTP/1.1 a00 OK\r\n\r\n";
+    CHECK(!http_response_head_parse((const uint8_t *)bad_first, text_length(bad_first), &head));
+    const char *bad_third = "HTTP/1.1 20a OK\r\n\r\n";
+    CHECK(!http_response_head_parse((const uint8_t *)bad_third, text_length(bad_third), &head));
+    const char *lowercase = "http/1.1 200 OK\r\n\r\n";
+    CHECK(!http_response_head_parse((const uint8_t *)lowercase, text_length(lowercase), &head));
+}
+
+static void test_http_chunked_decode_uppercase_hex(void) {
+    const char *body = "A\r\n0123456789\r\n0\r\n\r\n";
+    uint8_t output[32];
+    uint64_t written = 0;
+    CHECK(http_chunked_decode((const uint8_t *)body, text_length(body), output, sizeof output, &written));
+    CHECK_U64_EQ(written, 10u);
+    CHECK(memcmp(output, "0123456789", 10u) == 0);
+}
+
 void register_http_message_tests(void) {
     test_register("http_request_build", test_http_request_build);
     test_register("http_request_build_empty_body", test_http_request_build_empty_body);
@@ -185,4 +225,7 @@ void register_http_message_tests(void) {
     test_register("http_chunked_decode_empty", test_http_chunked_decode_empty);
     test_register("http_chunked_decode_trailer", test_http_chunked_decode_trailer);
     test_register("http_chunked_decode_rejects_malformed", test_http_chunked_decode_rejects_malformed);
+    test_register("http_head_uppercase_and_unchunked", test_http_head_uppercase_and_unchunked);
+    test_register("http_head_rejects_bad_status_lines", test_http_head_rejects_bad_status_lines);
+    test_register("http_chunked_decode_uppercase_hex", test_http_chunked_decode_uppercase_hex);
 }
