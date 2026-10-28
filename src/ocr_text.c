@@ -79,11 +79,26 @@ bool ocr_normalize_span(const char *text, uint64_t begin, uint64_t end, char *ou
 
     uint64_t used = 0;
     bool pending_space = false;
+    bool pending_line_break = false;
     for (uint64_t index = begin; index < end; index += 1) {
         char character = text[index];
         if (ocr_is_space(character)) {
             pending_space = used > 0u;
+            if (character == '\n') {
+                pending_line_break = true;
+            }
             continue;
+        }
+        if (pending_space) {
+            /* A word split by hyphenation at a hard line break arrives as
+             * "exam-\nple"; joining it gives back "example". A hyphen followed
+             * by an uppercase letter is kept, because that break is far more
+             * likely to separate a real compound than to split a word. */
+            bool hyphenated = pending_line_break && used > 0u && output[used - 1u] == '-' && character >= 'a' && character <= 'z';
+            if (hyphenated) {
+                used -= 1u;
+                pending_space = false;
+            }
         }
         if (pending_space) {
             if (used >= capacity) {
@@ -93,6 +108,7 @@ bool ocr_normalize_span(const char *text, uint64_t begin, uint64_t end, char *ou
             used += 1u;
             pending_space = false;
         }
+        pending_line_break = false;
         if (used >= capacity) {
             return false;
         }

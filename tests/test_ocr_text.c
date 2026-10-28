@@ -235,9 +235,20 @@ static void test_ocr_superscripts(void) {
     CHECK(ocr_superscript_present("\xC2\xB9\xE2\x81\xB4 x \xC2\xB2\xE2\x81\xB0\xE2\x81\xB0", text_length("\xC2\xB9\xE2\x81\xB4 x \xC2\xB2\xE2\x81\xB0\xE2\x81\xB0"), 200));
 }
 
+
+static void test_ocr_normalize_joins_hyphenated_line_breaks(void) {
+    const char *text = "exam-\nple stays well- known\nByzan-\ntine and pre-\nAnd";
+    char output[96];
+    uint64_t written = 0;
+    CHECK(ocr_normalize_span(text, 0u, text_length(text), output, sizeof output, &written));
+    output[written] = '\0';
+    CHECK_STR_EQ(output, "example stays well- known Byzantine and pre- And");
+}
+
 void register_ocr_text_tests(void) {
     test_register("ocr_next_paragraph", test_ocr_next_paragraph);
     test_register("ocr_normalize_span", test_ocr_normalize_span);
+    test_register("ocr_normalize_joins_hyphenated_line_breaks", test_ocr_normalize_joins_hyphenated_line_breaks);
     test_register("ocr_normalize_running_head", test_ocr_normalize_running_head);
     test_register("ocr_roman", test_ocr_roman);
     test_register("ocr_number_token", test_ocr_number_token);
