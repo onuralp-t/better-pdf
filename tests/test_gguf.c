@@ -299,6 +299,261 @@ static void test_gguf_rejects_unknown_type(void) {
     fclose(file);
 }
 
+static void test_gguf_rejects_truncated_header(void) {
+    uint64_t number = 0;
+    bool found = true;
+
+    /* Three bytes: not even the magic fits. */
+    builder value = { { 0 }, 0 };
+    put_bytes(&value, "GGU", 3u);
+    FILE *file = builder_file(&value, "gguf_short_magic.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "k", &number, &found));
+    CHECK(!found);
+    fclose(file);
+
+    /* Full magic and version, half of the tensor count. */
+    value.length = 0;
+    put_bytes(&value, "GGUF", 4u);
+    put_u32(&value, 3u);
+    put_u32(&value, 0u);
+    file = builder_file(&value, "gguf_short_tensors.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "k", &number, &found));
+    CHECK(!found);
+    fclose(file);
+
+    /* Full magic, half of the version. */
+    value.length = 0;
+    put_bytes(&value, "GGUF", 4u);
+    put_bytes(&value, "\x03\x00", 2u);
+    file = builder_file(&value, "gguf_short_version.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "k", &number, &found));
+    CHECK(!found);
+    fclose(file);
+
+    /* Full tensor count, half of the entry count. */
+    value.length = 0;
+    put_bytes(&value, "GGUF", 4u);
+    put_u32(&value, 3u);
+    put_u64(&value, 0u);
+    put_u32(&value, 0u);
+    file = builder_file(&value, "gguf_short_entries.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "k", &number, &found));
+    CHECK(!found);
+    fclose(file);
+}
+
+static void test_gguf_rejects_future_version(void) {
+    builder value = { { 0 }, 0 };
+    builder_header(&value, 4u, 0u);
+
+    FILE *file = builder_file(&value, "gguf_future_version.gguf");
+    uint64_t number = 0;
+    bool found = true;
+    CHECK(!gguf_read_metadata_u64(file, "k", &number, &found));
+    CHECK(!found);
+    fclose(file);
+}
+
+static void test_gguf_rejects_unreadable_value(void) {
+    uint64_t number = 0;
+    bool found = true;
+
+    /* A matching key whose value is a float. */
+    builder value = { { 0 }, 0 };
+    builder_header(&value, 3u, 1u);
+    builder_key(&value, "k", 12u);
+    put_u64(&value, 0x3FF0000000000000u);
+    FILE *file = builder_file(&value, "gguf_float64.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "k", &number, &found));
+    CHECK(!found);
+    fclose(file);
+
+    /* A matching key of a type the reader does not know. */
+    value.length = 0;
+    builder_header(&value, 3u, 1u);
+    builder_key(&value, "k", 99u);
+    file = builder_file(&value, "gguf_unknown_value.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "k", &number, &found));
+    CHECK(!found);
+    fclose(file);
+
+    /* A matching key whose value is cut short. */
+    value.length = 0;
+    builder_header(&value, 3u, 1u);
+    builder_key(&value, "k", 10u);
+    put_u32(&value, 1u);
+    file = builder_file(&value, "gguf_cut_value.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "k", &number, &found));
+    CHECK(!found);
+    fclose(file);
+}
+
+static void test_gguf_rejects_unseekable_strings(void) {
+    uint64_t number = 0;
+    bool found = false;
+
+    /* A string value longer than off_t can address cannot be skipped. */
+    builder value = { { 0 }, 0 };
+    builder_header(&value, 3u, 1u);
+    builder_key(&value, "k", 8u);
+    put_u64(&value, 0x8000000000000000u);
+    FILE *file = builder_file(&value, "gguf_huge_string.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+
+    /* The same length inside an array of strings. */
+    value.length = 0;
+    builder_header(&value, 3u, 1u);
+    builder_key(&value, "k", 9u);
+    put_u32(&value, 8u);
+    put_u64(&value, 1u);
+    put_u64(&value, 0x8000000000000000u);
+    file = builder_file(&value, "gguf_huge_string_array.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+}
+
+static void test_gguf_rejects_bad_arrays(void) {
+    uint64_t number = 0;
+    bool found = false;
+
+    /* An array whose elements are themselves arrays. */
+    builder value = { { 0 }, 0 };
+    builder_header(&value, 3u, 1u);
+    builder_key(&value, "k", 9u);
+    put_u32(&value, 9u);
+    put_u64(&value, 0u);
+    FILE *file = builder_file(&value, "gguf_array_of_arrays.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+
+    /* An array of a scalar type that does not exist. */
+    value.length = 0;
+    builder_header(&value, 3u, 1u);
+    builder_key(&value, "k", 9u);
+    put_u32(&value, 99u);
+    put_u64(&value, 2u);
+    file = builder_file(&value, "gguf_array_unknown.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+
+    /* An element count that would overflow the byte size. */
+    value.length = 0;
+    builder_header(&value, 3u, 1u);
+    builder_key(&value, "k", 9u);
+    put_u32(&value, 4u);
+    put_u64(&value, UINT64_MAX);
+    file = builder_file(&value, "gguf_array_overflow.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+}
+
+static void test_gguf_rejects_truncated_entries(void) {
+    uint64_t number = 0;
+    bool found = false;
+
+    /* No room at all for the key length. */
+    builder value = { { 0 }, 0 };
+    builder_header(&value, 3u, 1u);
+    FILE *file = builder_file(&value, "gguf_no_key.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+
+    /* A key length whose bytes are cut short. */
+    value.length = 0;
+    builder_header(&value, 3u, 1u);
+    put_u64(&value, 4u);
+    put_bytes(&value, "ab", 2u);
+    file = builder_file(&value, "gguf_cut_key.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+
+    /* A complete key whose type is cut short. */
+    value.length = 0;
+    builder_header(&value, 3u, 1u);
+    put_string(&value, "key");
+    put_bytes(&value, "\x04\x00", 2u);
+    file = builder_file(&value, "gguf_cut_type.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+
+    /* A string value whose length is cut short. */
+    value.length = 0;
+    builder_header(&value, 3u, 1u);
+    builder_key(&value, "k", 8u);
+    put_bytes(&value, "\x05\x00", 2u);
+    file = builder_file(&value, "gguf_cut_string_length.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+
+    /* A string array element whose length is cut short. */
+    value.length = 0;
+    builder_header(&value, 3u, 1u);
+    builder_key(&value, "k", 9u);
+    put_u32(&value, 8u);
+    put_u64(&value, 1u);
+    put_bytes(&value, "\x05\x00", 2u);
+    file = builder_file(&value, "gguf_cut_array_length.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+
+    /* An array whose element type is cut short. */
+    value.length = 0;
+    builder_header(&value, 3u, 1u);
+    put_string(&value, "key");
+    put_u32(&value, 9u);
+    put_bytes(&value, "\x08\x00", 2u);
+    file = builder_file(&value, "gguf_cut_element_type.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+
+    /* An array whose element count is cut short. */
+    value.length = 0;
+    builder_header(&value, 3u, 1u);
+    put_string(&value, "key");
+    put_u32(&value, 9u);
+    put_u32(&value, 4u);
+    put_bytes(&value, "\x01\x00\x00", 3u);
+    file = builder_file(&value, "gguf_cut_element_count.gguf");
+    CHECK(!gguf_read_metadata_u64(file, "target", &number, &found));
+    fclose(file);
+}
+
+static void test_gguf_skips_empty_string(void) {
+    builder value = { { 0 }, 0 };
+    builder_header(&value, 3u, 2u);
+    builder_key(&value, "empty", 8u);
+    put_u64(&value, 0u);
+    builder_key(&value, "target", 4u);
+    put_u32(&value, 5u);
+
+    FILE *file = builder_file(&value, "gguf_empty_string.gguf");
+    uint64_t number = 0;
+    bool found = false;
+    CHECK(gguf_read_metadata_u64(file, "target", &number, &found));
+    CHECK(found);
+    CHECK_U64_EQ(number, 5u);
+    fclose(file);
+}
+
+static void test_gguf_skips_empty_key(void) {
+    builder value = { { 0 }, 0 };
+    builder_header(&value, 3u, 2u);
+    put_string(&value, "");
+    put_u32(&value, 4u);
+    put_u32(&value, 7u);
+    builder_key(&value, "target", 4u);
+    put_u32(&value, 5u);
+
+    FILE *file = builder_file(&value, "gguf_empty_key.gguf");
+    uint64_t number = 0;
+    bool found = false;
+    CHECK(gguf_read_metadata_u64(file, "target", &number, &found));
+    CHECK(found);
+    CHECK_U64_EQ(number, 5u);
+    fclose(file);
+}
+
 void register_gguf_tests(void) {
     test_register("gguf_reads_vision_budget", test_gguf_reads_vision_budget);
     test_register("gguf_missing_key", test_gguf_missing_key);
@@ -310,4 +565,12 @@ void register_gguf_tests(void) {
     test_register("gguf_rejects_truncated_file", test_gguf_rejects_truncated_file);
     test_register("gguf_rejects_long_key", test_gguf_rejects_long_key);
     test_register("gguf_rejects_unknown_type", test_gguf_rejects_unknown_type);
+    test_register("gguf_rejects_truncated_header", test_gguf_rejects_truncated_header);
+    test_register("gguf_rejects_future_version", test_gguf_rejects_future_version);
+    test_register("gguf_rejects_unreadable_value", test_gguf_rejects_unreadable_value);
+    test_register("gguf_rejects_unseekable_strings", test_gguf_rejects_unseekable_strings);
+    test_register("gguf_rejects_bad_arrays", test_gguf_rejects_bad_arrays);
+    test_register("gguf_rejects_truncated_entries", test_gguf_rejects_truncated_entries);
+    test_register("gguf_skips_empty_string", test_gguf_skips_empty_string);
+    test_register("gguf_skips_empty_key", test_gguf_skips_empty_key);
 }
