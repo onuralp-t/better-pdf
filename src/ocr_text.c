@@ -94,7 +94,9 @@ bool ocr_normalize_span(const char *text, uint64_t begin, uint64_t end, char *ou
              * "exam-\nple"; joining it gives back "example". A hyphen followed
              * by an uppercase letter is kept, because that break is far more
              * likely to separate a real compound than to split a word. */
-            bool hyphenated = pending_line_break && used > 0u && output[used - 1u] == '-' && character >= 'a' && character <= 'z';
+            /* pending_space is only set once a character has been written. */
+            ASSERT(used > 0u);
+            bool hyphenated = pending_line_break && output[used - 1u] == '-' && character >= 'a' && character <= 'z';
             if (hyphenated) {
                 used -= 1u;
                 pending_space = false;
@@ -333,10 +335,9 @@ static bool ocr_is_chapter_marker(const char *text, uint64_t length) {
 }
 
 static bool ocr_starts_with_numbered_heading(const char *text, uint64_t length) {
+    /* ocr_classify_heading rejects empty text before calling this. */
+    ASSERT(length > 0u);
     uint64_t index = 0;
-    if (index >= length) {
-        return false;
-    }
     if (text[index] >= '0' && text[index] <= '9') {
         uint32_t digits = 0;
         while (index < length && text[index] >= '0' && text[index] <= '9' && digits < 3u) {
@@ -367,13 +368,15 @@ static bool ocr_starts_with_numbered_heading(const char *text, uint64_t length) 
 }
 
 static bool ocr_ends_with_terminal_punctuation(const char *text, uint64_t length) {
+    ASSERT(length > 0u);
     uint64_t end = length;
-    while (end > 0u && ocr_is_space(text[end - 1u])) {
+    /* Callers only ask about text with at least one word, so a non-space byte
+     * is always ahead of the trim. */
+    while (ocr_is_space(text[end - 1u])) {
         end -= 1u;
     }
-    if (end == 0u) {
-        return false;
-    }
+    /* Callers only ask when the text has at least one word. */
+    ASSERT(end > 0u);
     char last = text[end - 1u];
     return last == '.' || last == ',' || last == ';' || last == ':' || last == '!' || last == '?';
 }
