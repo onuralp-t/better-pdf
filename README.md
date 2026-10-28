@@ -27,12 +27,12 @@ raster and costs no OCR time.
 
 Everything is vendored under `third_party/`, pinned and committed:
 
-| Path | What |
-| --- | --- |
-| `third_party/pdfium/bin/pdfium.dll` (+ `lib/pdfium.dll.lib`, `include/`) | PDF rendering |
-| `third_party/llama-b11968-bin-win-cpu-x64/llama-server.exe` | inference server |
-| `third_party/PaddleOCR-VL-1.6-GGUF/*.gguf` | model and vision projector |
-| `third_party/typst/typst.exe` | typesetting |
+| Path                                                                     | What                       |
+| ------------------------------------------------------------------------ | -------------------------- |
+| `third_party/pdfium/bin/pdfium.dll` (+ `lib/pdfium.dll.lib`, `include/`) | PDF rendering              |
+| `third_party/llama-b11968-bin-win-cpu-x64/llama-server.exe`              | inference server           |
+| `third_party/PaddleOCR-VL-1.6-GGUF/*.gguf`                               | model and vision projector |
+| `third_party/typst/typst.exe`                                            | typesetting                |
 
 The build needs clang (tested with 23.x) with the MSVC linker available.
 
@@ -69,10 +69,27 @@ Options:
 | `--help` | usage |
 
 Exit codes: `0` success, `1` bad arguments or unreadable input, `2` a pipeline
-step failed, `3` an internal invariant was violated (the assertion aborts).
+step failed, `3` an internal invariant was violated (the assertion aborts),
+`130` the run was interrupted.
 
 The OCR server is started only when at least one requested page is not cached,
-and it is stopped again when the run ends. Its output goes to
+and it is stopped again when the run ends. If something else already answers on
+the port, the run refuses to start a second server instead of silently talking
+to a server it does not own; pass `--server-url` to reuse that one on purpose.
+
+## Interrupting a run
+
+Ctrl+C (or closing the console window) stops the run immediately, but not
+abruptly: the handler prints a line, terminates the OCR server and any typst
+child, and exits with code `130`. The children are also members of a job
+object created with kill-on-job-close, so even a `TerminateProcess` from Task
+Manager, a failed assertion, or a crash takes them down with the parent. No
+`llama-server.exe` or `typst.exe` survives the parent by any exit path.
+
+Cached pages are written to a temporary file and renamed into place, so an
+interrupt can never leave a truncated page that a later run would read as
+complete. Because every finished page is already cached, restarting the run
+resumes where it stopped. Its output goes to
 `<work>/llama-server.log`, the typst output to `<work>/typst.log`, and the
 generated markup to `<work>/book.typ`, so a failed run can be inspected without
 rerunning the model.

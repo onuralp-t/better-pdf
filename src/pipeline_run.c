@@ -226,6 +226,10 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
             ERROR("could not resolve the third-party paths");
             return PIPELINE_STATUS_ERROR;
         }
+        if (server_process_port_ready(config->port)) {
+            ERROR("something already answers on port %u; close it, choose another --port, or pass --server-url to reuse it", config->port);
+            return PIPELINE_STATUS_ERROR;
+        }
         LOG("starting the OCR server for %u uncached pages", missing);
         if (!server_process_start(&server, absolute_executable, absolute_model, absolute_mmproj, config->port, resolved_work_dir, error, sizeof error)) {
             ERROR("%s", error);

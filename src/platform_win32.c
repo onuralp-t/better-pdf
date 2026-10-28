@@ -46,6 +46,67 @@ void platform_network_shutdown(void) {
     (void)WSACleanup();
 }
 
+static HANDLE platform_job = NULL;
+
+bool platform_job_create(void) {
+    if (platform_job != NULL) {
+        return true;
+    }
+    HANDLE job = CreateJobObjectW(NULL, NULL);
+    if (job == NULL) {
+        return false;
+    }
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits;
+    memset(&limits, 0, sizeof limits);
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, (DWORD)sizeof limits) == 0) {
+        CloseHandle(job);
+        return false;
+    }
+    platform_job = job;
+    return true;
+}
+
+void platform_job_assign(void *process) {
+    if (platform_job == NULL || process == NULL) {
+        return;
+    }
+    (void)AssignProcessToJobObject(platform_job, (HANDLE)process);
+}
+
+void platform_job_terminate(void) {
+    if (platform_job != NULL) {
+        (void)TerminateJobObject(platform_job, 130u);
+    }
+}
+
+static BOOL WINAPI platform_interrupt_handler(DWORD signal) {
+    if (signal != CTRL_C_EVENT && signal != CTRL_BREAK_EVENT && signal != CTRL_CLOSE_EVENT) {
+        return FALSE;
+    }
+    static const char message[] = "\nbetter-pdf: interrupted; stopping child processes\n";
+    DWORD written = 0;
+    (void)WriteFile(GetStdHandle(STD_ERROR_HANDLE), message, (DWORD)(sizeof message - 1u), &written, NULL);
+    platform_job_terminate();
+    ExitProcess(130u);
+    return TRUE;
+}
+
+bool platform_install_interrupt_handler(void) {
+    return SetConsoleCtrlHandler(platform_interrupt_handler, TRUE) != 0;
+}
+
+bool platform_replace_file(const char *from_path, const char *to_path) {
+    ASSERT(from_path != NULL);
+    ASSERT(to_path != NULL);
+    wchar_t wide_from[PLATFORM_PATH_CAPACITY];
+    wchar_t wide_to[PLATFORM_PATH_CAPACITY];
+    if (!utf8_to_utf16(from_path, wide_from, PLATFORM_PATH_CAPACITY) || !utf8_to_utf16(to_path, wide_to, PLATFORM_PATH_CAPACITY)) {
+        return false;
+    }
+    return MoveFileExW(wide_from, wide_to, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+}
+
 bool platform_read_file(const char *path, char *buffer, uint64_t capacity, uint64_t *length, bool *found) {
     ASSERT(path != NULL);
     ASSERT(buffer != NULL);

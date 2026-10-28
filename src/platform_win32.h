@@ -22,6 +22,19 @@ bool platform_absolute_path(const char *path, char *buffer, uint64_t capacity);
 bool platform_copy_file(const char *from_path, const char *to_path);
 bool platform_remove_file(const char *path);
 bool platform_remove_directory(const char *path);
+bool platform_replace_file(const char *from_path, const char *to_path);
+
+/* Creates the job object that every child process joins. The job is created
+ * with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, so the children are terminated as
+ * soon as this process exits for any reason: normal return, a failed
+ * assertion, Task Manager, or Ctrl+C. */
+bool platform_job_create(void);
+void platform_job_assign(void *process);
+void platform_job_terminate(void);
+
+/* Installs the console handler for Ctrl+C and Ctrl+Break. The handler reports
+ * the interruption, terminates the job, and exits with code 130. */
+bool platform_install_interrupt_handler(void);
 
 /* Replaces GetCommandLineW()'s arguments as UTF-8. Returns the argument count,
  * or 0 when conversion fails or the storage is too small. */

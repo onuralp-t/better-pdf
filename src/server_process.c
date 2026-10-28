@@ -12,7 +12,7 @@
 
 #define SERVER_POLL_INTERVAL_MS 250u
 
-static bool server_health(uint16_t port) {
+bool server_process_port_ready(uint16_t port) {
     SOCKET connection = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (connection == INVALID_SOCKET) {
         return false;
@@ -106,6 +106,7 @@ bool server_process_start(server_process *server, const char *executable, const 
         (void)snprintf(error, (size_t)error_capacity, "could not start llama-server (error %lu)", GetLastError());
         return false;
     }
+    platform_job_assign(info.hProcess);
     server->process = info.hProcess;
     server->thread = info.hThread;
     return true;
@@ -115,7 +116,7 @@ bool server_process_wait_ready(const server_process *server, uint16_t port, uint
     ASSERT(server != NULL);
     uint32_t waited_ms = 0;
     while (waited_ms <= timeout_seconds * 1000u) {
-        if (server_health(port)) {
+        if (server_process_port_ready(port)) {
             return true;
         }
         if (!server_process_running(server)) {

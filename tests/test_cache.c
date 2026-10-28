@@ -98,6 +98,29 @@ static void test_cache_init_reports_directory_failure(void) {
     CHECK(strstr(error, "could not create") != NULL);
 }
 
+
+static void test_cache_write_replaces_without_leaving_temporary(void) {
+    cache value;
+    CHECK(cache_ready(&value, TEST_CACHE_KEY));
+    CHECK(cache_write_page(&value, 7u, "first", 5u));
+    CHECK(cache_write_page(&value, 7u, "second", 6u));
+
+    char path[CACHE_PATH_CAPACITY];
+    CHECK(cache_page_path(&value, 7u, path, sizeof path));
+    char temporary[CACHE_PATH_CAPACITY];
+    (void)snprintf(temporary, sizeof temporary, "%s.tmp", path);
+    CHECK(platform_path_exists(path));
+    CHECK(!platform_path_exists(temporary));
+
+    char text[32];
+    uint64_t length = 0;
+    bool found = false;
+    CHECK(cache_read_page(&value, 7u, text, sizeof text, &length, &found));
+    CHECK(found);
+    CHECK_U64_EQ(length, 6u);
+    CHECK(memcmp(text, "second", 6u) == 0);
+}
+
 void register_cache_tests(void) {
     test_register("cache_key_is_stable_and_sensitive", test_cache_key_is_stable_and_sensitive);
     test_register("cache_paths", test_cache_paths);
@@ -106,4 +129,5 @@ void register_cache_tests(void) {
     test_register("cache_manifest", test_cache_manifest);
     test_register("cache_init_rejects_long_work_dir", test_cache_init_rejects_long_work_dir);
     test_register("cache_init_reports_directory_failure", test_cache_init_reports_directory_failure);
+    test_register("cache_write_replaces_without_leaving_temporary", test_cache_write_replaces_without_leaving_temporary);
 }

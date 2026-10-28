@@ -71,6 +71,25 @@ bool cache_read_page(const cache *value, uint32_t page_index, char *buffer, uint
     return platform_read_file(path, buffer, capacity, length, found);
 }
 
+/* Writes through a temporary file and renames it into place, so an
+ * interrupted run can never leave a truncated page that a later run would
+ * read as if it were complete. */
+static bool cache_write_atomic(const char *path, const char *text, uint64_t length) {
+    char temporary[CACHE_PATH_CAPACITY];
+    uint64_t written = (uint64_t)snprintf(temporary, sizeof temporary, "%s.tmp", path);
+    if (written >= (uint64_t)sizeof temporary) {
+        return false;
+    }
+    if (!platform_write_file(temporary, text, length)) {
+        return false;
+    }
+    if (!platform_replace_file(temporary, path)) {
+        (void)platform_remove_file(temporary);
+        return false;
+    }
+    return true;
+}
+
 bool cache_write_page(const cache *value, uint32_t page_index, const char *text, uint64_t length) {
     ASSERT(value != NULL);
     ASSERT(text != NULL);
@@ -79,7 +98,7 @@ bool cache_write_page(const cache *value, uint32_t page_index, const char *text,
     if (!cache_page_path(value, page_index, path, sizeof path)) {
         return false;
     }
-    return platform_write_file(path, text, length);
+    return cache_write_atomic(path, text, length);
 }
 
 bool cache_write_manifest(const cache *value, const char *text, uint64_t length) {
@@ -91,5 +110,5 @@ bool cache_write_manifest(const cache *value, const char *text, uint64_t length)
     if (written >= (uint64_t)sizeof path) {
         return false;
     }
-    return platform_write_file(path, text, length);
+    return cache_write_atomic(path, text, length);
 }

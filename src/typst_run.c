@@ -43,6 +43,7 @@ static bool typst_run_process(const char *command, const char *work_dir, const c
         (void)snprintf(error, (size_t)error_capacity, "could not start typst (error %lu)", GetLastError());
         return false;
     }
+    platform_job_assign(info.hProcess);
     (void)WaitForSingleObject(info.hProcess, 120000u);
     DWORD exit_code = 1;
     (void)GetExitCodeProcess(info.hProcess, &exit_code);

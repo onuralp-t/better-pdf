@@ -23,6 +23,12 @@ static uint8_t *main_slice(arena *scratch, uint64_t bytes, uint64_t alignment) {
 int main(void) {
     platform_enable_utf8_console();
     log_init(stderr);
+    if (!platform_job_create()) {
+        WARN("could not create the child process job; an interrupted run may leave children behind");
+    }
+    if (!platform_install_interrupt_handler()) {
+        WARN("could not install the Ctrl+C handler");
+    }
     if (!platform_network_init()) {
         ERROR("could not initialize Winsock");
         return 1;
