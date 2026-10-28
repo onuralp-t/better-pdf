@@ -1,0 +1,6 @@
+build/
+tests/tmp/
+*.work/
+*.opt.pdf
+.inspect-tmp/
+.inspect-tmp2/
