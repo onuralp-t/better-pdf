@@ -94,15 +94,11 @@ bool http_response_head_parse(const uint8_t *data, uint64_t length, http_respons
         return false;
     }
 
-    uint64_t line_end = UINT64_MAX;
-    for (uint64_t index = 0; index + 1u < header_end; index += 1) {
-        if (data[index] == '\r' && data[index + 1u] == '\n') {
-            line_end = index;
-            break;
-        }
-    }
-    if (line_end == UINT64_MAX) {
-        return false;
+    /* The terminator itself starts with CRLF, so the status line always ends
+     * inside the header block. */
+    uint64_t line_end = 0;
+    while (!(data[line_end] == '\r' && data[line_end + 1u] == '\n')) {
+        line_end += 1u;
     }
 
     uint64_t position = 0;
@@ -133,13 +129,12 @@ bool http_response_head_parse(const uint8_t *data, uint64_t length, http_respons
     head->status_code = (int32_t)((data[position] - '0') * 100 + (data[position + 1u] - '0') * 10 + (data[position + 2u] - '0'));
 
     uint64_t index = line_end + 2u;
-    while (index < header_end) {
+    for (;;) {
         uint64_t next = index;
-        while (next + 1u < header_end && !(data[next] == '\r' && data[next + 1u] == '\n')) {
+        /* The block ends with CRLF CRLF, so every line start has a CRLF after it. */
+        ASSERT(index + 1u < header_end);
+        while (!(data[next] == '\r' && data[next + 1u] == '\n')) {
             next += 1u;
-        }
-        if (next + 1u >= header_end) {
-            return false;
         }
         uint64_t header_length = next - index;
         if (header_length == 0u) {
@@ -222,7 +217,11 @@ bool http_chunked_decode(const uint8_t *data, uint64_t length, uint8_t *output, 
         while (index < length && data[index] != '\r') {
             index += 1u;
         }
-        if (index + 1u >= length || data[index] != '\r' || data[index + 1u] != '\n') {
+        if (index + 1u >= length) {
+            return false;
+        }
+        ASSERT(data[index] == '\r');
+        if (data[index + 1u] != '\n') {
             return false;
         }
         index += 2u;
@@ -239,7 +238,11 @@ bool http_chunked_decode(const uint8_t *data, uint64_t length, uint8_t *output, 
                 while (index < length && data[index] != '\r') {
                     index += 1u;
                 }
-                if (index + 1u >= length || data[index] != '\r' || data[index + 1u] != '\n') {
+                if (index + 1u >= length) {
+                    return false;
+                }
+                ASSERT(data[index] == '\r');
+                if (data[index + 1u] != '\n') {
                     return false;
                 }
                 index += 2u;

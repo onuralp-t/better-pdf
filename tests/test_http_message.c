@@ -211,6 +211,64 @@ static void test_http_chunked_decode_uppercase_hex(void) {
     CHECK(memcmp(output, "0123456789", 10u) == 0);
 }
 
+static void test_http_head_malformed_line_endings(void) {
+    http_response_head head;
+
+    /* A carriage return followed by a normal byte inside the code is not a
+     * line ending, and it also breaks the status code. */
+    const char *stray_cr = "HTTP/1.1 2\r0 OK\r\n\r\n";
+    CHECK(!http_response_head_parse((const uint8_t *)stray_cr, text_length(stray_cr), &head));
+
+    /* CR LF CR followed by anything but LF does not end the header block. */
+    const char *partial_terminator = "HTTP/1.1 200 OK\r\n\rX\r\n\r\n";
+    CHECK(!http_response_head_parse((const uint8_t *)partial_terminator, text_length(partial_terminator), &head));
+
+    /* The version ends right after the dot, so no minor digits exist. */
+    const char *empty_minor = "HTTP/1.\r\n\r\n";
+    CHECK(!http_response_head_parse((const uint8_t *)empty_minor, text_length(empty_minor), &head));
+}
+
+static void test_http_head_stray_cr_in_header_line(void) {
+    /* A lone carriage return inside a header line is value data, not a break. */
+    const char *response = "HTTP/1.1 200 OK\r\nX-Data: one\r two\r\n\r\n";
+    http_response_head head;
+    CHECK(http_response_head_parse((const uint8_t *)response, text_length(response), &head));
+    CHECK_U64_EQ((uint64_t)head.status_code, 200u);
+    CHECK(!head.has_content_length);
+    CHECK_U64_EQ(head.header_length, text_length(response));
+}
+
+static void test_http_chunked_decode_lowercase_hex(void) {
+    const char *body = "a\r\n0123456789\r\n0\r\n\r\n";
+    uint8_t output[32];
+    uint64_t written = 0;
+    CHECK(http_chunked_decode((const uint8_t *)body, text_length(body), output, sizeof output, &written));
+    CHECK_U64_EQ(written, 10u);
+    CHECK(memcmp(output, "0123456789", 10u) == 0);
+}
+
+static void test_http_chunked_decode_bad_size_terminators(void) {
+    uint8_t output[32];
+    uint64_t written = 0;
+
+    /* The size must be followed by CR LF, not by a stray CR. */
+    const char *no_lf = "5\rX\r\nhello\r\n0\r\n\r\n";
+    CHECK(!http_chunked_decode((const uint8_t *)no_lf, text_length(no_lf), output, sizeof output, &written));
+
+    /* Trailer lines must also end with CR LF. */
+    const char *trailer_stray_cr = "0\r\n\rX\r\n\r\n";
+    CHECK(!http_chunked_decode((const uint8_t *)trailer_stray_cr, text_length(trailer_stray_cr), output, sizeof output, &written));
+    const char *trailer_unterminated = "0\r\nXY";
+    CHECK(!http_chunked_decode((const uint8_t *)trailer_unterminated, text_length(trailer_unterminated), output, sizeof output, &written));
+
+    /* Chunk data must be followed by CR LF; a stray byte is caught even when
+     * more input follows it. */
+    const char *data_stray = "2\r\nhiXYZ";
+    CHECK(!http_chunked_decode((const uint8_t *)data_stray, text_length(data_stray), output, sizeof output, &written));
+    const char *data_stray_cr = "2\r\nhi\rXYZ";
+    CHECK(!http_chunked_decode((const uint8_t *)data_stray_cr, text_length(data_stray_cr), output, sizeof output, &written));
+}
+
 void register_http_message_tests(void) {
     test_register("http_request_build", test_http_request_build);
     test_register("http_request_build_empty_body", test_http_request_build_empty_body);
@@ -228,4 +286,8 @@ void register_http_message_tests(void) {
     test_register("http_head_uppercase_and_unchunked", test_http_head_uppercase_and_unchunked);
     test_register("http_head_rejects_bad_status_lines", test_http_head_rejects_bad_status_lines);
     test_register("http_chunked_decode_uppercase_hex", test_http_chunked_decode_uppercase_hex);
+    test_register("http_head_malformed_line_endings", test_http_head_malformed_line_endings);
+    test_register("http_head_stray_cr_in_header_line", test_http_head_stray_cr_in_header_line);
+    test_register("http_chunked_decode_lowercase_hex", test_http_chunked_decode_lowercase_hex);
+    test_register("http_chunked_decode_bad_size_terminators", test_http_chunked_decode_bad_size_terminators);
 }
