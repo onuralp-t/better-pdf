@@ -11,6 +11,7 @@
 #include <string.h>
 
 static bool platform_path_exists_wide(const wchar_t *path) {
+    ASSERT(path != NULL);
     return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
 }
 
@@ -128,14 +129,14 @@ bool platform_read_file(const char *path, char *buffer, uint64_t capacity, uint6
         fclose(file);
         return false;
     }
-    long size = ftell(file);
+    int64_t size = (int64_t)ftell(file);
     if (size < 0 || (uint64_t)size > capacity || fseek(file, 0, SEEK_SET) != 0) {
         fclose(file);
         return false;
     }
-    size_t read = fread(buffer, 1, (size_t)size, file);
+    uint64_t read = (uint64_t)fread(buffer, 1, (size_t)size, file);
     fclose(file);
-    if (read != (size_t)size) {
+    if (read != (uint64_t)size) {
         return false;
     }
     *length = (uint64_t)size;
@@ -155,9 +156,9 @@ bool platform_write_file(const char *path, const char *data, uint64_t length) {
     if (file == NULL) {
         return false;
     }
-    size_t written = fwrite(data, 1, (size_t)length, file);
+    uint64_t written = (uint64_t)fwrite(data, 1, (size_t)length, file);
     int closed = fclose(file);
-    return written == (size_t)length && closed == 0;
+    return written == (uint64_t)length && closed == 0;
 }
 
 bool platform_path_exists(const char *path) {

@@ -23,8 +23,8 @@ bool pdf_input_open(pdf_input *input, const char *pdf_path, char *error, uint64_
 
     FPDF_DOCUMENT document = FPDF_LoadDocument(pdf_path, NULL);
     if (document == NULL) {
-        unsigned long code = FPDF_GetLastError();
-        (void)snprintf(error, (size_t)error_capacity, "pdfium could not open %s (error %lu)", pdf_path, code);
+        uint32_t code = (uint32_t)FPDF_GetLastError();
+        (void)snprintf(error, (size_t)error_capacity, "pdfium could not open %s (error %u)", pdf_path, (unsigned)code);
         return false;
     }
     input->document = document;
