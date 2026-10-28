@@ -16,8 +16,8 @@ if errorlevel 1 exit /b 1
 rem The Win32 adapter, the pdfium binding, the HTTP client, the child processes,
 rem and the orchestrator contain no decision logic of their own; they are
 rem exercised by scripts\e2e.bat instead. The assertion helper is only reachable
-rem by aborting the process, which the coverage runtime cannot record.
+rem by trapping, which the coverage runtime cannot record.
 llvm-cov report build\unit_tests_cov.exe -instr-profile build\coverage.profdata ^
-  -ignore-filename-regex="platform_win32\.c|pdf_input\.c|ocr_client\.c|server_process\.c|typst_run\.c|pipeline_run\.c|main\.c|asserts\.c|tests\\" ^
+  -ignore-filename-regex="platform_win32\.c|pdf_input\.c|ocr_client\.c|server_process\.c|typst_run\.c|pipeline_run\.c|main\.c|asserts\.c|tests" ^
   -show-branch-summary -show-mcdc-summary
 exit /b %errorlevel%
