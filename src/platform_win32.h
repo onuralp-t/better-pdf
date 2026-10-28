@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <wchar.h>
 
 #define PLATFORM_PATH_CAPACITY 4096u
@@ -49,6 +50,12 @@ bool platform_utf8_to_utf16(const char *utf8, wchar_t *output, uint32_t capacity
 uint32_t platform_utf8_arguments(const char **arguments, char *storage, uint64_t storage_capacity);
 
 void platform_enable_utf8_console(void);
+
+/* True when the stream is attached to a console. Only then does redrawing a
+ * progress line in place with carriage returns make sense; a redirected
+ * stream must keep plain lines. */
+bool platform_stream_is_console(FILE *stream);
+
 bool platform_network_init(void);
 void platform_network_shutdown(void);
 

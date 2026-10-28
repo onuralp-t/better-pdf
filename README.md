@@ -98,8 +98,18 @@ run can be inspected without rerunning the model.
 ## Watching progress
 
 Before any page is read, the run logs how many pages the input holds and which
-range it is going to process. It then prints a progress line when it starts,
-every ten pages, and once more for the last page:
+range it is going to process. On a console it then keeps one line at the bottom
+of the screen and rewrites it in place: once for the start, after every page,
+and every second while the OCR server is still working on the current page. The
+line names the page in flight, so a 45-second page never looks frozen:
+
+```
+[######..................] 3/12 pages, 25% | page 4: 17s | 10.0 s/page | ETA 1m 30s
+```
+
+When the output is redirected (a file, a pipe, CI), in-place rewriting would
+only fill the file with carriage returns, so the run falls back to plain log
+lines at the start, every ten pages, and for the last page:
 
 ```
 [########................] 25/120 pages, 20% | 8.4 s/page | ETA 13m 18s
@@ -108,8 +118,10 @@ every ten pages, and once more for the last page:
 The seconds per page are the running mean over every page finished so far:
 cached pages cost almost nothing and pull the mean down, so a resumed run
 estimates optimistically until the newly recognized pages dominate. The ETA is
-that mean multiplied by the pages that are left, rounded up. The line goes to
-the same log as the rest of the run, so a long OCR job is never a silent wait.
+that mean multiplied by the pages that are left, rounded up.
+
+Log lines written while the bar is up clear it first and redraw it afterwards,
+so a warning about a blank page does not end up welded to the bar.
 
 ## Interrupting a run
 

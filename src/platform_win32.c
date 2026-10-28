@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <io.h>
 
 static bool platform_path_exists_wide(const wchar_t *path) {
     ASSERT(path != NULL);
@@ -34,6 +35,12 @@ double platform_monotonic_seconds(void) {
 void platform_enable_utf8_console(void) {
     (void)SetConsoleOutputCP(CP_UTF8);
     (void)SetConsoleCP(CP_UTF8);
+}
+
+bool platform_stream_is_console(FILE *stream) {
+    ASSERT(stream != NULL);
+    int descriptor = _fileno(stream);
+    return descriptor >= 0 && _isatty(descriptor) != 0;
 }
 
 bool platform_network_init(void) {

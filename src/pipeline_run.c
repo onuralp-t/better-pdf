@@ -31,10 +31,16 @@ static bool pipeline_join(char *output, uint64_t capacity, const char *directory
     return written > 0 && (uint64_t)written < capacity;
 }
 
-static void pipeline_log_progress(const progress *value) {
+static void pipeline_draw_progress(progress_display *display, const progress *value) {
+    ASSERT(display != NULL);
     ASSERT(value != NULL);
     char line[160];
-    if (progress_format(value, line, sizeof line) > 0u) {
+    if (progress_format(value, line, sizeof line) == 0u) {
+        return;
+    }
+    if (progress_display_enabled(display)) {
+        progress_display_show(display, line);
+    } else {
         LOG("%s", line);
     }
 }
@@ -66,7 +72,24 @@ static bool pipeline_output_directory(const char *output_path, char *buffer, uin
     return true;
 }
 
-static bool pipeline_recognize_page(uint32_t max_pixels, const pipeline_buffers *buffers, pdf_input *pdf, const ocr_endpoint *endpoint, uint32_t page_index, uint64_t *text_length) {
+typedef struct {
+    progress_display *display;
+    const progress *value;
+    uint32_t page_number;
+    double page_started;
+} pipeline_live_page;
+
+static void pipeline_live_page_tick(void *context) {
+    ASSERT(context != NULL);
+    pipeline_live_page *live = (pipeline_live_page *)context;
+    char line[160];
+    double elapsed = platform_monotonic_seconds() - live->page_started;
+    if (progress_format_active(live->value, live->page_number, elapsed, line, sizeof line) > 0u) {
+        progress_display_show(live->display, line);
+    }
+}
+
+static bool pipeline_recognize_page(uint32_t max_pixels, const pipeline_buffers *buffers, pdf_input *pdf, const ocr_endpoint *endpoint, uint32_t page_index, uint64_t *text_length, const ocr_tick *tick) {
     ASSERT(buffers != NULL);
     ASSERT(text_length != NULL);
 
@@ -115,7 +138,7 @@ static bool pipeline_recognize_page(uint32_t max_pixels, const pipeline_buffers 
     uint64_t response_length = 0;
     uint64_t body_offset = 0;
     uint64_t body_length = 0;
-    if (!ocr_client_post(endpoint, buffers->request, request_length, buffers->response, buffers->response_capacity, &response_length, &body_offset, &body_length, error, sizeof error)) {
+    if (!ocr_client_post(endpoint, buffers->request, request_length, buffers->response, buffers->response_capacity, &response_length, &body_offset, &body_length, error, sizeof error, tick)) {
         ERROR("%s", error);
         return false;
     }
@@ -173,7 +196,6 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
 
     progress page_progress;
     progress_init(&page_progress, last_index - first_index + 1u);
-    pipeline_log_progress(&page_progress);
 
     for (uint32_t index = 0; index < page_count; index += 1) {
         if (!pdf_input_page_size(pdf, index, &buffers->page_widths[index], &buffers->page_heights[index], error, sizeof error)) {
@@ -278,6 +300,16 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
         LOG("all %u pages are cached; no OCR server is needed", last_index - first_index + 1u);
     }
 
+    /* From here on every failure jumps to done, so the display cannot outlive
+     * this function. The bar is redrawn in place on a console; a redirected
+     * stderr keeps the plain periodic log lines instead of carriage returns. */
+    progress_display display;
+    progress_display_init(&display, platform_stream_is_console(stderr) ? stderr : NULL);
+    if (progress_display_enabled(&display)) {
+        log_set_status(&display);
+    }
+    pipeline_draw_progress(&display, &page_progress);
+
     if (!document_init(buffers->doc, buffers->doc_memory, buffers->doc_capacity, page_count, document_text_capacity(page_count))) {
         ERROR("the document storage is too small for %u pages", page_count);
         goto done;
@@ -287,6 +319,15 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
     uint32_t cached = 0;
     for (uint32_t index = first_index; index <= last_index; index += 1) {
         double page_started = platform_monotonic_seconds();
+        pipeline_live_page live_page;
+        live_page.display = &display;
+        live_page.value = &page_progress;
+        live_page.page_number = index + 1u;
+        live_page.page_started = page_started;
+        ocr_tick page_tick;
+        page_tick.tick = pipeline_live_page_tick;
+        page_tick.context = &live_page;
+        const ocr_tick *tick = progress_display_enabled(&display) ? &page_tick : NULL;
         uint64_t text_length = 0;
         bool found = false;
         if (!cache_read_page(&page_cache, index, buffers->page_text, buffers->page_text_capacity, &text_length, &found)) {
@@ -296,7 +337,7 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
         if (found) {
             cached += 1;
         } else {
-            if (!pipeline_recognize_page(max_pixels, buffers, pdf, &endpoint, index, &text_length)) {
+            if (!pipeline_recognize_page(max_pixels, buffers, pdf, &endpoint, index, &text_length, tick)) {
                 bool crashed = server_started && !server_process_running(&server);
                 if (!crashed || server_restarts >= PIPELINE_SERVER_RESTARTS) {
                     goto done;
@@ -311,7 +352,7 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
                 }
                 server_started = true;
                 LOG("the OCR server is ready again; retrying page %u", index + 1u);
-                if (!pipeline_recognize_page(max_pixels, buffers, pdf, &endpoint, index, &text_length)) {
+                if (!pipeline_recognize_page(max_pixels, buffers, pdf, &endpoint, index, &text_length, tick)) {
                     goto done;
                 }
             }
@@ -327,8 +368,17 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
             goto done;
         }
         progress_add_page(&page_progress, platform_monotonic_seconds() - page_started);
-        if (page_progress.completed_pages % PIPELINE_PROGRESS_EVERY == 0u || page_progress.completed_pages == page_progress.total_pages) {
-            pipeline_log_progress(&page_progress);
+        if (progress_display_enabled(&display) || page_progress.completed_pages % PIPELINE_PROGRESS_EVERY == 0u ||
+            page_progress.completed_pages == page_progress.total_pages) {
+            pipeline_draw_progress(&display, &page_progress);
+        }
+    }
+
+    if (progress_display_enabled(&display)) {
+        char line[160];
+        log_set_status(NULL);
+        if (progress_format(&page_progress, line, sizeof line) > 0u) {
+            progress_display_complete(&display, line);
         }
     }
 
@@ -412,6 +462,8 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
     status = PIPELINE_STATUS_OK;
 
 done:
+    log_set_status(NULL);
+    progress_display_suspend(&display);
     if (server_started) {
         server_process_stop(&server);
     }

@@ -1,6 +1,8 @@
 #ifndef BETTER_PDF_LOG_H
 #define BETTER_PDF_LOG_H
 
+#include "progress.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,6 +15,12 @@ typedef enum {
 
 void log_init(FILE *sink);
 void log_set_sink(FILE *sink);
+
+/* While a progress display is attached, every log line clears the bottom line
+ * first and redraws it afterwards, so the live bar never swallows a message.
+ * Pass NULL to detach. */
+void log_set_status(progress_display *display);
+
 bool log_ready(void);
 void log_emit(log_level level, const char *file, uint32_t line, const char *format, ...);
 

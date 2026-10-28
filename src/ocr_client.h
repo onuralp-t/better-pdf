@@ -20,9 +20,16 @@ typedef struct {
 
 bool ocr_endpoint_parse(const char *url, ocr_endpoint *endpoint, char *error, uint64_t error_capacity);
 
+/* Called about once a second while the reply is still outstanding, so the
+ * caller can repaint a live progress line during a long OCR request. */
+typedef struct {
+    void (*tick)(void *context);
+    void *context;
+} ocr_tick;
+
 /* Posts the JSON body and returns the decoded response body. Chunked replies are
  * decoded in place, so the body starts at response + body_offset. */
-bool ocr_client_post(const ocr_endpoint *endpoint, const char *body, uint64_t body_length, char *response, uint64_t response_capacity, uint64_t *response_length, uint64_t *body_offset, uint64_t *body_length_out, char *error, uint64_t error_capacity);
+bool ocr_client_post(const ocr_endpoint *endpoint, const char *body, uint64_t body_length, char *response, uint64_t response_capacity, uint64_t *response_length, uint64_t *body_offset, uint64_t *body_length_out, char *error, uint64_t error_capacity, const ocr_tick *tick);
 
 bool ocr_response_text(const char *body, uint64_t body_length, char *text, uint64_t text_capacity, uint64_t *text_length, char *error, uint64_t error_capacity);
 

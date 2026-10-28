@@ -59,8 +59,31 @@ static void test_log_truncates_long_messages(void) {
     fclose(sink);
 }
 
+static void test_log_clears_and_redraws_the_status_line(void) {
+    FILE *status = test_open_temporary("log_status.txt");
+    CHECK(status != NULL);
+    progress_display display;
+    progress_display_init(&display, status);
+    progress_display_show(&display, "progress");
+
+    FILE *sink = test_open_temporary("log_status_sink.txt");
+    CHECK(sink != NULL);
+    log_set_status(&display);
+    log_set_sink(sink);
+    LOG("line");
+    log_set_sink(stderr);
+    log_set_status(NULL);
+
+    char buffer[256];
+    log_capture(status, buffer, sizeof buffer);
+    CHECK_STR_EQ(buffer, "\rprogress\r        \rprogress");
+    fclose(status);
+    fclose(sink);
+}
+
 void register_log_tests(void) {
     test_register("log_formats_info_and_warn", test_log_formats_info_and_warn);
     test_register("log_error_includes_location", test_log_error_includes_location);
     test_register("log_truncates_long_messages", test_log_truncates_long_messages);
+    test_register("log_clears_and_redraws_the_status_line", test_log_clears_and_redraws_the_status_line);
 }

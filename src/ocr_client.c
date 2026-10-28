@@ -81,10 +81,11 @@ bool ocr_endpoint_parse(const char *url, ocr_endpoint *endpoint, char *error, ui
     return true;
 }
 
-bool ocr_client_post(const ocr_endpoint *endpoint, const char *body, uint64_t body_length, char *response, uint64_t response_capacity, uint64_t *response_length, uint64_t *body_offset, uint64_t *body_length_out, char *error, uint64_t error_capacity) {
+bool ocr_client_post(const ocr_endpoint *endpoint, const char *body, uint64_t body_length, char *response, uint64_t response_capacity, uint64_t *response_length, uint64_t *body_offset, uint64_t *body_length_out, char *error, uint64_t error_capacity, const ocr_tick *tick) {
     ASSERT(endpoint != NULL);
     ASSERT(body != NULL);
     ASSERT(response != NULL);
+    ASSERT(tick == NULL || tick->tick != NULL);
 
     char host_header[96];
     (void)snprintf(host_header, sizeof host_header, "%s:%u", endpoint->host, (unsigned)endpoint->port);
@@ -139,6 +140,21 @@ bool ocr_client_post(const ocr_endpoint *endpoint, const char *body, uint64_t bo
         if (total >= response_capacity) {
             (void)snprintf(error, (size_t)error_capacity, "OCR response is larger than %llu bytes", (unsigned long long)response_capacity);
             break;
+        }
+        fd_set readable;
+        FD_ZERO(&readable);
+        FD_SET(connection, &readable);
+        struct timeval wait = { 1, 0 };
+        int ready = select(0, &readable, NULL, NULL, &wait);
+        if (ready == SOCKET_ERROR) {
+            (void)snprintf(error, (size_t)error_capacity, "could not wait for the OCR response (error %d)", WSAGetLastError());
+            break;
+        }
+        if (ready == 0) {
+            if (tick != NULL) {
+                tick->tick(tick->context);
+            }
+            continue;
         }
         int received = recv(connection, response + total, (int)(response_capacity - total), 0);
         if (received < 0) {
