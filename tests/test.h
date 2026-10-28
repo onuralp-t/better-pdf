@@ -34,5 +34,6 @@ void register_geometry_tests(void);
 void register_typst_emit_tests(void);
 void register_cache_tests(void);
 void register_pipeline_tests(void);
+void register_progress_tests(void);
 
 #endif

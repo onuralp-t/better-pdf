@@ -10,6 +10,7 @@
 #include "ocr_client.h"
 #include "platform_win32.h"
 #include "png.h"
+#include "progress.h"
 #include "server_process.h"
 #include "typst_emit.h"
 #include "typst_run.h"
@@ -28,6 +29,14 @@ static bool pipeline_join(char *output, uint64_t capacity, const char *directory
     ASSERT(relative != NULL);
     int written = snprintf(output, (size_t)capacity, "%s\\%s", directory, relative);
     return written > 0 && (uint64_t)written < capacity;
+}
+
+static void pipeline_log_progress(const progress *value) {
+    ASSERT(value != NULL);
+    char line[160];
+    if (progress_format(value, line, sizeof line) > 0u) {
+        LOG("%s", line);
+    }
 }
 
 static bool pipeline_output_directory(const char *output_path, char *buffer, uint64_t capacity) {
@@ -160,6 +169,11 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
         ERROR("page range %u-%u is outside this %u page document", config->first_page, config->last_page == 0u ? page_count : config->last_page, page_count);
         return PIPELINE_STATUS_ERROR;
     }
+    LOG("detected %u pages in the input; processing %u-%u", page_count, first_index + 1u, last_index + 1u);
+
+    progress page_progress;
+    progress_init(&page_progress, last_index - first_index + 1u);
+    pipeline_log_progress(&page_progress);
 
     for (uint32_t index = 0; index < page_count; index += 1) {
         if (!pdf_input_page_size(pdf, index, &buffers->page_widths[index], &buffers->page_heights[index], error, sizeof error)) {
@@ -272,6 +286,7 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
     uint32_t recognized = 0;
     uint32_t cached = 0;
     for (uint32_t index = first_index; index <= last_index; index += 1) {
+        double page_started = platform_monotonic_seconds();
         uint64_t text_length = 0;
         bool found = false;
         if (!cache_read_page(&page_cache, index, buffers->page_text, buffers->page_text_capacity, &text_length, &found)) {
@@ -310,6 +325,10 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
         if (!document_add_page(buffers->doc, index, buffers->page_text, text_length)) {
             ERROR("the text of page %u does not fit into memory", index + 1u);
             goto done;
+        }
+        progress_add_page(&page_progress, platform_monotonic_seconds() - page_started);
+        if (page_progress.completed_pages % PIPELINE_PROGRESS_EVERY == 0u || page_progress.completed_pages == page_progress.total_pages) {
+            pipeline_log_progress(&page_progress);
         }
     }
 

@@ -95,6 +95,22 @@ Its output goes to `<work>/llama-server.log`, the typst output to
 `<work>/typst.log`, and the generated markup to `<work>/book.typ`, so a failed
 run can be inspected without rerunning the model.
 
+## Watching progress
+
+Before any page is read, the run logs how many pages the input holds and which
+range it is going to process. It then prints a progress line when it starts,
+every ten pages, and once more for the last page:
+
+```
+[########................] 25/120 pages, 20% | 8.4 s/page | ETA 13m 18s
+```
+
+The seconds per page are the running mean over every page finished so far:
+cached pages cost almost nothing and pull the mean down, so a resumed run
+estimates optimistically until the newly recognized pages dominate. The ETA is
+that mean multiplied by the pages that are left, rounded up. The line goes to
+the same log as the rest of the run, so a long OCR job is never a silent wait.
+
 ## Interrupting a run
 
 Ctrl+C (or closing the console window) stops the run immediately, but not
@@ -176,21 +192,16 @@ scripts\e2e.bat [debug|release]     rem real model on small page ranges (slow)
 
 The unit tests cover memory, logging, CLI parsing, base64, PNG encoding, image
 analysis, JSON, HTTP framing, GGUF metadata, text classification, the AST,
-geometry, typst emission, caching, and pipeline planning. The Win32 adapter,
-pdfium binding, HTTP client, child processes, and the orchestrator are exercised
-by the end-to-end run instead; they contain no decision logic beyond error
-reporting.
+geometry, typst emission, caching, pipeline planning, and progress accounting.
+The Win32 adapter, pdfium binding, HTTP client, child processes, and the
+orchestrator are exercised by the end-to-end run instead; they contain no
+decision logic beyond error reporting.
 
-Product files currently reach 94.6% of lines, 87.8% of branches, and 68.7%
-of MC/DC conditions; `arena.c`, `base64.c`, `geometry.c`, and `log.c` are fully
-covered, and `png.c` has no uncovered line. What is left is mostly defensive checks
-in the JSON, HTTP, GGUF, and text parsers that no well-formed or plausible
-malformed input can reach, plus the Win32, pdfium, socket, and process glue
-that only the end-to-end run exercises. `asserts.c` is excluded because its
-only code path is a deliberate trap.
-
-`scripts\coverage.bat` prints branch and MC/DC summaries. The interactive
-`llvm-cov show` view is one command away:
+Every file the coverage report measures reaches 100% of regions, functions,
+lines, branches, and MC/DC conditions: the exclusions in `scripts\coverage.bat`
+are the end-to-end-only glue and `asserts.c`, whose only code path is a
+deliberate trap. `scripts\coverage.bat` prints the branch and MC/DC summaries.
+The interactive `llvm-cov show` view is one command away:
 
 ```bat
 llvm-cov show build\unit_tests_cov.exe -instr-profile=build\coverage.profdata ^

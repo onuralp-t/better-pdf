@@ -90,6 +90,7 @@ int main(void) {
     register_typst_emit_tests();
     register_cache_tests();
     register_pipeline_tests();
+    register_progress_tests();
 
     for (uint32_t index = 0; index < test_entry_count; index += 1) {
         uint32_t before = test_failure_count;
