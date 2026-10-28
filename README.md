@@ -38,12 +38,24 @@ The build needs clang (tested with 23.x) with the MSVC linker available.
 
 ## Build
 
+Two modes, one binary path:
+
 ```bat
-scripts\build.bat
+scripts\build.bat debug      rem -Og -g3, assertions stop in the debugger
+scripts\build.bat release    rem -O2, no debug info, assertions compile away
 ```
 
-This writes `build\better-pdf.exe`, copies `pdfium.dll` next to it, and copies
-the AddressSanitizer runtime DLL that the debug build links against.
+`debug` is the default and the mode to develop in. A failed `ASSERT` logs its
+file, line, and expression and then executes `int3`; with the generated
+`build\better-pdf.pdb` loaded, the debugger stops at that instruction with the
+failing expression in the caller's frame. `release` is the mode to run books in:
+it writes no PDB, carries no debug sections, and compiles every `ASSERT` to a
+compile-time check that emits no code, so assertions cost no branches and no
+memory traffic.
+
+Both modes copy `pdfium.dll` next to the exe. Neither needs a sanitizer
+runtime. The release image is roughly 228 KB; the debug image is 652 KB plus
+6.8 MB of PDB.
 
 ## Use
 
@@ -156,9 +168,10 @@ about 60 MB, dominated by the typst source buffer.
 ## Tests
 
 ```bat
-scripts\test.bat        rem unit tests under ASan and UBSan
-scripts\coverage.bat    rem MC/DC and branch coverage report
-scripts\e2e.bat         rem real model on small page ranges (slow)
+scripts\check.bat [debug|release]   rem build the program and run the unit tests
+scripts\test.bat [debug|release]    rem build and run the unit tests
+scripts\coverage.bat                rem MC/DC and branch coverage report
+scripts\e2e.bat [debug|release]     rem real model on small page ranges (slow)
 ```
 
 The unit tests cover memory, logging, CLI parsing, base64, PNG encoding, image
@@ -168,13 +181,13 @@ pdfium binding, HTTP client, child processes, and the orchestrator are exercised
 by the end-to-end run instead; they contain no decision logic beyond error
 reporting.
 
-Product files currently reach 94.8% of lines, 88.0% of branches, and 68.8%
+Product files currently reach 94.6% of lines, 87.8% of branches, and 68.7%
 of MC/DC conditions; `arena.c`, `base64.c`, `geometry.c`, and `log.c` are fully
 covered, and `png.c` has no uncovered line. What is left is mostly defensive checks
 in the JSON, HTTP, GGUF, and text parsers that no well-formed or plausible
 malformed input can reach, plus the Win32, pdfium, socket, and process glue
 that only the end-to-end run exercises. `asserts.c` is excluded because its
-only code path is a deliberate abort.
+only code path is a deliberate trap.
 
 `scripts\coverage.bat` prints branch and MC/DC summaries. The interactive
 `llvm-cov show` view is one command away:

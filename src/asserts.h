@@ -7,23 +7,22 @@
 /*
  * Assertion policy.
  *
- * ASSERT documents and checks preconditions, postconditions and invariants.
- * A failed assertion is always a programming error: it is logged as ERROR with
- * the file, line and expression, and then aborts the process so the state can
- * be inspected in a debugger.
+ * ASSERT documents and checks preconditions, postconditions and invariants. A
+ * failed assertion is always a programming error: it is logged with the file,
+ * line and expression, and then executes an int3 so an attached debugger stops
+ * exactly where the invariant broke. Without a debugger the trap terminates the
+ * process at that instruction instead of unwinding into unrelated code.
  *
- * ASSERT must only be used on expressions without side effects: coverage
- * builds compile the expression but do not evaluate it, so that the guards of
- * correct programs do not appear as uncovered branches.
- *
- * In coverage builds, expressions evaluated only by ASSERT would no longer be
- * evaluated, which would change program behaviour. Never wrap a call with a
- * side effect in ASSERT; assign its result to a local first.
+ * Release builds and coverage builds compile the expression but never evaluate
+ * it, so a release binary pays nothing for its assertions and the guards of a
+ * correct program do not appear as uncovered branches. That also means an
+ * expression evaluated only by ASSERT is dead code in those builds: never put a
+ * side effect in an assertion, assign the result to a local first.
  */
 
 [[noreturn]] void assert_fail(const char *file, uint32_t line, const char *expression);
 
-#if defined(BETTER_PDF_COVERAGE_BUILD)
+#if defined(BETTER_PDF_RELEASE) || defined(BETTER_PDF_COVERAGE_BUILD)
 #define ASSERT(condition) ((void)sizeof(condition))
 #else
 #define ASSERT(condition)                                            \

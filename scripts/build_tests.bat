@@ -1,11 +1,26 @@
 @echo off
-rem Builds the unit test binary with the development flags from STYLE.md.
+rem Builds build\unit_tests.exe. Usage: build_tests.bat [debug^|release]
 setlocal
 
+set MODE=%~1
+if "%MODE%"=="" set MODE=debug
+if /I "%MODE%"=="debug" goto flags_debug
+if /I "%MODE%"=="release" goto flags_release
+echo usage: scripts\build_tests.bat [debug^|release]
+exit /b 2
+
+:flags_debug
+set FLAGS=-Og -g3 -DBETTER_PDF_DEBUG
+goto compile
+
+:flags_release
+set FLAGS=-O2 -DBETTER_PDF_RELEASE
+
+:compile
 if not exist build mkdir build
 
-clang -std=c23 -Wall -Wextra -pedantic -Werror -Og -g3 -D_CRT_SECURE_NO_WARNINGS ^
-  -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc -Itests ^
+clang -std=c23 -Wall -Wextra -pedantic -Werror -D_CRT_SECURE_NO_WARNINGS %FLAGS% ^
+  -Isrc -Itests ^
   src\log.c src\arena.c src\asserts.c src\cli.c src\platform_win32.c ^
   src\base64.c src\png.c src\image.c src\json.c src\http_message.c src\gguf.c src\ocr_text.c src\document.c src\geometry.c src\typst_emit.c src\cache.c src\pipeline.c ^
   tests\test_main.c tests\test_log.c tests\test_arena.c tests\test_cli.c ^
@@ -15,8 +30,5 @@ clang -std=c23 -Wall -Wextra -pedantic -Werror -Og -g3 -D_CRT_SECURE_NO_WARNINGS
   -lws2_32 -lshell32 -luser32 -o build\unit_tests.exe
 if errorlevel 1 exit /b 1
 
-rem AddressSanitizer is a dynamic runtime on Windows: the DLL must sit next to
-rem the executable or the loader fails with 0xC0000139 before main() runs.
-for /f "delims=" %%i in ('clang -print-resource-dir') do set RESOURCE_DIR=%%i
-copy /Y "%RESOURCE_DIR%\lib\windows\clang_rt.asan_dynamic-x86_64.dll" build\ >nul
+echo built build\unit_tests.exe (%MODE%)
 exit /b 0

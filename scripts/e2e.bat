@@ -3,7 +3,7 @@ rem Runs the real pipeline end to end on small page ranges of the sample books.
 rem This needs the vendored model and several minutes of CPU time.
 setlocal
 
-call "%~dp0build.bat"
+call "%~dp0build.bat" %1
 if errorlevel 1 exit /b 1
 
 if not exist build\e2e mkdir build\e2e
