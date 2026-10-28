@@ -2,6 +2,7 @@
 
 #include "asserts.h"
 
+#include <fpdf_edit.h>
 #include <fpdfview.h>
 
 #include <stdio.h>

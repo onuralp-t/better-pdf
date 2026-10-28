@@ -17,7 +17,7 @@ static void test_cli_defaults(void) {
     CHECK_STR_EQ(config.input_path, "input.pdf");
     CHECK_STR_EQ(config.output_path, "output.pdf");
     CHECK(config.work_dir == NULL);
-    CHECK(config.third_party_dir == NULL);
+    CHECK_STR_EQ(config.third_party_dir, "third_party");
     CHECK(config.server_url == NULL);
     CHECK(config.title == NULL);
     CHECK_U64_EQ(config.first_page, 1);

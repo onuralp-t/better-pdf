@@ -234,6 +234,23 @@ static void test_json_scan_value_at_offset(void) {
     CHECK_U64_EQ(value.begin, 6u);
 }
 
+
+static void test_json_string_raw_utf8(void) {
+    const char *raw = "\"a\xE2\x80\xA2\xC3\xA9\xF0\x9F\x98\x80\"";
+    json_value root;
+    CHECK(json_parse_document(raw, text_length(raw), &root));
+    char output[32];
+    uint64_t written = 0;
+    CHECK(json_string_copy(raw, text_length(raw), root, output, sizeof output, &written));
+    output[written] = '\0';
+    CHECK_U64_EQ(written, 10u);
+    CHECK(memcmp(output, "a\xE2\x80\xA2\xC3\xA9\xF0\x9F\x98\x80", 10u) == 0);
+
+    CHECK(!json_string_copy(raw, text_length(raw), root, output, 9u, &written));
+    CHECK(json_string_copy(raw, text_length(raw), root, output, 10u, &written));
+    CHECK_U64_EQ(written, 10u);
+}
+
 void register_json_tests(void) {
     test_register("json_document_shape", test_json_document_shape);
     test_register("json_document_rejects_trailing_garbage", test_json_document_rejects_trailing_garbage);
@@ -245,5 +262,6 @@ void register_json_tests(void) {
     test_register("json_number_forms", test_json_number_forms);
     test_register("json_malformed", test_json_malformed);
     test_register("json_escaped_key_is_not_matched", test_json_escaped_key_is_not_matched);
+    test_register("json_string_raw_utf8", test_json_string_raw_utf8);
     test_register("json_scan_value_at_offset", test_json_scan_value_at_offset);
 }

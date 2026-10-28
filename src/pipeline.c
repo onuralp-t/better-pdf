@@ -3,6 +3,7 @@
 #include "asserts.h"
 #include "base64.h"
 #include "document.h"
+#include "gguf.h"
 #include "png.h"
 
 #include <stdio.h>
@@ -22,8 +23,8 @@ bool pipeline_plan_sizes(uint32_t page_count, uint32_t max_pixels, pipeline_size
     }
 
     uint64_t text_capacity = document_text_capacity(page_count);
-    sizes->document_bytes = document_memory_required(page_count, text_capacity);
     sizes->size_array_bytes = (uint64_t)page_count * 4u * 2u;
+    sizes->document_bytes = document_memory_required(page_count, text_capacity) + sizes->size_array_bytes;
     sizes->raster_bytes = (uint64_t)max_pixels * 4u;
     sizes->png_bytes = (uint64_t)max_pixels * 4u + 4096u;
     sizes->base64_bytes = base64_encoded_length(sizes->png_bytes) + 8u;
@@ -32,12 +33,55 @@ bool pipeline_plan_sizes(uint32_t page_count, uint32_t max_pixels, pipeline_size
     sizes->typst_bytes = text_capacity * 2u + (uint64_t)PIPELINE_TYPST_SLACK_BYTES;
     sizes->page_text_bytes = (uint64_t)PIPELINE_PAGE_TEXT_BYTES;
 
-    sizes->total_bytes = sizes->document_bytes + sizes->size_array_bytes + sizes->raster_bytes +
+    sizes->total_bytes = sizes->document_bytes + sizes->raster_bytes +
                          sizes->png_bytes + sizes->base64_bytes + sizes->request_bytes +
                          sizes->response_bytes + sizes->typst_bytes + sizes->page_text_bytes;
+    /* The arena aligns its base, which can consume a few dozen bytes. */
+    sizes->total_bytes += 256u;
     if (sizes->total_bytes > PIPELINE_MEMORY_LIMIT_BYTES) {
         return false;
     }
+    return true;
+}
+
+bool pipeline_resolve_max_pixels(const char *third_party_dir, uint32_t override_value, uint32_t *max_pixels, char *error, uint64_t error_capacity) {
+    ASSERT(third_party_dir != NULL);
+    ASSERT(max_pixels != NULL);
+    ASSERT(error != NULL);
+
+    if (override_value != 0u) {
+        *max_pixels = override_value;
+        return true;
+    }
+
+    char path[1024];
+    int written = snprintf(path, sizeof path, "%s\\PaddleOCR-VL-1.6-GGUF\\PaddleOCR-VL-1.6-GGUF-mmproj.gguf", third_party_dir);
+    if (written < 0 || (uint64_t)written >= sizeof path) {
+        (void)snprintf(error, (size_t)error_capacity, "third-party directory path is too long");
+        return false;
+    }
+    FILE *file = fopen(path, "rb");
+    if (file == NULL) {
+        (void)snprintf(error, (size_t)error_capacity, "vision projector not found at %s; pass --max-pixels", path);
+        return false;
+    }
+    uint64_t value = 0;
+    bool found = false;
+    bool read = gguf_read_metadata_u64(file, "clip.vision.image_max_pixels", &value, &found);
+    fclose(file);
+    if (!read) {
+        (void)snprintf(error, (size_t)error_capacity, "could not read the pixel budget from %s", path);
+        return false;
+    }
+    if (!found) {
+        (void)snprintf(error, (size_t)error_capacity, "%s has no clip.vision.image_max_pixels", path);
+        return false;
+    }
+    if (value == 0u || value > UINT32_MAX) {
+        (void)snprintf(error, (size_t)error_capacity, "pixel budget %llu is not usable; pass --max-pixels", (unsigned long long)value);
+        return false;
+    }
+    *max_pixels = (uint32_t)value;
     return true;
 }
 

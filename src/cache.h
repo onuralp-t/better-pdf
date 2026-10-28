@@ -16,7 +16,7 @@
  */
 
 #define CACHE_PATH_CAPACITY 1024u
-#define CACHE_PIPELINE_VERSION 1u
+#define CACHE_PIPELINE_VERSION 2u
 
 typedef struct {
     char directory[CACHE_PATH_CAPACITY];

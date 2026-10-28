@@ -2,7 +2,9 @@
 
 #include "json.h"
 #include "pipeline.h"
+#include "platform_win32.h"
 
+#include <stdio.h>
 #include <string.h>
 
 static void test_pipeline_select_range(void) {
@@ -119,6 +121,63 @@ static void test_pipeline_request_build(void) {
     CHECK(pipeline_request_build("", 0u, request, sizeof request) > 0u);
 }
 
+
+static void pipeline_write_u32(FILE *file, uint32_t value) {
+    (void)fwrite(&value, sizeof value, 1, file);
+}
+
+static void pipeline_write_u64(FILE *file, uint64_t value) {
+    (void)fwrite(&value, sizeof value, 1, file);
+}
+
+static void pipeline_write_string(FILE *file, const char *text) {
+    pipeline_write_u64(file, (uint64_t)strlen(text));
+    (void)fwrite(text, 1, strlen(text), file);
+}
+
+static bool pipeline_build_mmproj(const char *directory, uint32_t type, uint64_t value) {
+    char path[512];
+    (void)snprintf(path, sizeof path, "%s\\PaddleOCR-VL-1.6-GGUF\\PaddleOCR-VL-1.6-GGUF-mmproj.gguf", directory);
+    FILE *file = fopen(path, "wb");
+    if (file == NULL) {
+        return false;
+    }
+    (void)fwrite("GGUF", 1, 4, file);
+    pipeline_write_u32(file, 3u);
+    pipeline_write_u64(file, 0u);
+    pipeline_write_u64(file, 1u);
+    pipeline_write_string(file, "clip.vision.image_max_pixels");
+    pipeline_write_u32(file, type);
+    if (type == 4u) {
+        pipeline_write_u32(file, (uint32_t)value);
+    } else {
+        pipeline_write_u64(file, value);
+    }
+    return fclose(file) == 0;
+}
+
+static void test_pipeline_resolve_max_pixels(void) {
+    char error[256];
+    uint32_t max_pixels = 0;
+    CHECK(pipeline_resolve_max_pixels("third_party", 123u, &max_pixels, error, sizeof error));
+    CHECK_U64_EQ(max_pixels, 123u);
+
+    CHECK(platform_create_directories("tests/tmp/tp/PaddleOCR-VL-1.6-GGUF"));
+    CHECK(pipeline_build_mmproj("tests/tmp/tp", 4u, 1003520u));
+    CHECK(pipeline_resolve_max_pixels("tests/tmp/tp", 0u, &max_pixels, error, sizeof error));
+    CHECK_U64_EQ(max_pixels, 1003520u);
+
+    CHECK(pipeline_build_mmproj("tests/tmp/tp", 4u, 0u));
+    CHECK(!pipeline_resolve_max_pixels("tests/tmp/tp", 0u, &max_pixels, error, sizeof error));
+    CHECK(strstr(error, "--max-pixels") != NULL);
+
+    CHECK(pipeline_build_mmproj("tests/tmp/tp", 10u, 5000000000ull));
+    CHECK(!pipeline_resolve_max_pixels("tests/tmp/tp", 0u, &max_pixels, error, sizeof error));
+
+    CHECK(!pipeline_resolve_max_pixels("tests/tmp/empty-tp", 0u, &max_pixels, error, sizeof error));
+    CHECK(strstr(error, "not found") != NULL);
+}
+
 void register_pipeline_tests(void) {
     test_register("pipeline_select_range", test_pipeline_select_range);
     test_register("pipeline_work_directory", test_pipeline_work_directory);
@@ -126,4 +185,5 @@ void register_pipeline_tests(void) {
     test_register("pipeline_plan_sizes", test_pipeline_plan_sizes);
     test_register("pipeline_plan_sizes_rejects_absurd_budget", test_pipeline_plan_sizes_rejects_absurd_budget);
     test_register("pipeline_request_build", test_pipeline_request_build);
+    test_register("pipeline_resolve_max_pixels", test_pipeline_resolve_max_pixels);
 }

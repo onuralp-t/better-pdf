@@ -17,6 +17,8 @@ bool platform_read_file(const char *path, char *buffer, uint64_t capacity, uint6
 bool platform_write_file(const char *path, const char *data, uint64_t length);
 bool platform_create_directories(const char *path);
 bool platform_path_exists(const char *path);
+bool platform_file_size(const char *path, uint64_t *size);
+bool platform_absolute_path(const char *path, char *buffer, uint64_t capacity);
 bool platform_copy_file(const char *from_path, const char *to_path);
 bool platform_remove_file(const char *path);
 bool platform_remove_directory(const char *path);

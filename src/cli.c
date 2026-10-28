@@ -126,7 +126,7 @@ cli_status cli_parse(uint32_t argument_count, const char *const *arguments, cli_
     config->input_path = NULL;
     config->output_path = NULL;
     config->work_dir = NULL;
-    config->third_party_dir = NULL;
+    config->third_party_dir = "third_party";
     config->server_url = NULL;
     config->title = NULL;
     config->first_page = 1;

@@ -2,6 +2,7 @@
 #define BETTER_PDF_PIPELINE_H
 
 #include "cli.h"
+#include "document.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -32,6 +33,9 @@ typedef struct {
 } pipeline_sizes;
 
 typedef struct {
+    document *doc;
+    uint8_t *doc_memory;
+    uint64_t doc_capacity;
     uint32_t *page_widths;
     uint32_t *page_heights;
     uint8_t *raster;
@@ -51,6 +55,7 @@ typedef struct {
 } pipeline_buffers;
 
 bool pipeline_plan_sizes(uint32_t page_count, uint32_t max_pixels, pipeline_sizes *sizes);
+bool pipeline_resolve_max_pixels(const char *third_party_dir, uint32_t override_value, uint32_t *max_pixels, char *error, uint64_t error_capacity);
 bool pipeline_select_range(uint32_t page_count, uint32_t first_page, uint32_t last_page, uint32_t *first_index, uint32_t *last_index);
 bool pipeline_work_directory(const char *output_path, const char *work_dir_option, char *buffer, uint64_t capacity);
 bool pipeline_file_stem(const char *path, char *buffer, uint64_t capacity);

@@ -110,6 +110,37 @@ bool platform_path_exists(const char *path) {
     return GetFileAttributesW(wide_path) != INVALID_FILE_ATTRIBUTES;
 }
 
+bool platform_file_size(const char *path, uint64_t *size) {
+    ASSERT(path != NULL);
+    ASSERT(size != NULL);
+    wchar_t wide_path[PLATFORM_PATH_CAPACITY];
+    if (!utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
+        return false;
+    }
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    if (GetFileAttributesExW(wide_path, GetFileExInfoStandard, &data) == 0) {
+        return false;
+    }
+    *size = ((uint64_t)data.nFileSizeHigh << 32) | (uint64_t)data.nFileSizeLow;
+    return true;
+}
+
+bool platform_absolute_path(const char *path, char *buffer, uint64_t capacity) {
+    ASSERT(path != NULL);
+    ASSERT(buffer != NULL);
+    wchar_t wide_path[PLATFORM_PATH_CAPACITY];
+    wchar_t full_path[PLATFORM_PATH_CAPACITY];
+    if (!utf8_to_utf16(path, wide_path, PLATFORM_PATH_CAPACITY)) {
+        return false;
+    }
+    DWORD length = GetFullPathNameW(wide_path, PLATFORM_PATH_CAPACITY, full_path, NULL);
+    if (length == 0 || length >= PLATFORM_PATH_CAPACITY) {
+        return false;
+    }
+    int converted = WideCharToMultiByte(CP_UTF8, 0, full_path, -1, buffer, (int)capacity, NULL, NULL);
+    return converted > 0;
+}
+
 bool platform_create_directories(const char *path) {
     ASSERT(path != NULL);
 

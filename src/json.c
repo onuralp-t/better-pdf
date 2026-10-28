@@ -365,7 +365,11 @@ bool json_string_copy(const char *text, uint64_t length, json_value value, char 
     while (index < end && ok) {
         char character = text[index];
         if (character != '\\') {
-            ok = json_append_utf8(output, output_capacity, &used, (uint32_t)(unsigned char)character);
+            if (used + 1u > output_capacity) {
+                return false;
+            }
+            output[used] = character;
+            used += 1u;
             index += 1u;
             continue;
         }

@@ -250,7 +250,7 @@ bool http_chunked_decode(const uint8_t *data, uint64_t length, uint8_t *output, 
         if (size > output_capacity - used || index + size > length) {
             return false;
         }
-        memcpy(output + used, data + index, (size_t)size);
+        memmove(output + used, data + index, (size_t)size);
         used += size;
         index += size;
         if (index + 1u >= length || data[index] != '\r' || data[index + 1u] != '\n') {
