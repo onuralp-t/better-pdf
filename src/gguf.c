@@ -2,13 +2,14 @@
 
 #include "asserts.h"
 
-#include <limits.h>
 #include <string.h>
 
 #define GGUF_MAGIC 0x46554747u /* "GGUF" read as a little-endian word */
 #define GGUF_KEY_CAPACITY 512u
 
 static bool gguf_read_bytes(FILE *file, void *buffer, uint64_t size) {
+    ASSERT(file != NULL);
+    ASSERT((size == 0u) | (buffer != NULL));
     if (size == 0u) {
         return true;
     }
@@ -16,6 +17,8 @@ static bool gguf_read_bytes(FILE *file, void *buffer, uint64_t size) {
 }
 
 static bool gguf_read_u32(FILE *file, uint32_t *value) {
+    ASSERT(file != NULL);
+    ASSERT(value != NULL);
     uint8_t bytes[4];
     if (!gguf_read_bytes(file, bytes, 4u)) {
         return false;
@@ -25,6 +28,8 @@ static bool gguf_read_u32(FILE *file, uint32_t *value) {
 }
 
 static bool gguf_read_u64(FILE *file, uint64_t *value) {
+    ASSERT(file != NULL);
+    ASSERT(value != NULL);
     uint8_t bytes[8];
     if (!gguf_read_bytes(file, bytes, 8u)) {
         return false;
@@ -38,17 +43,11 @@ static bool gguf_read_u64(FILE *file, uint64_t *value) {
 }
 
 static bool gguf_skip(FILE *file, uint64_t size) {
+    ASSERT(file != NULL);
     if (size > (uint64_t)INT64_MAX) {
         return false;
     }
-#ifdef _WIN32
     return _fseeki64(file, (int64_t)size, SEEK_CUR) == 0;
-#else
-    if (size > (uint64_t)LONG_MAX) {
-        return false;
-    }
-    return fseek(file, (long)size, SEEK_CUR) == 0;
-#endif
 }
 
 static bool gguf_read_string(FILE *file, char *output, uint64_t capacity, uint64_t *length) {
@@ -93,6 +92,7 @@ static uint64_t gguf_scalar_size(uint32_t type) {
 }
 
 static bool gguf_skip_array(FILE *file, uint32_t element_type, uint64_t count) {
+    ASSERT(file != NULL);
     if (element_type == 9u) {
         return false;
     }
@@ -119,6 +119,7 @@ static bool gguf_skip_array(FILE *file, uint32_t element_type, uint64_t count) {
 }
 
 static bool gguf_skip_value(FILE *file, uint32_t type) {
+    ASSERT(file != NULL);
     if (type == 8u) {
         uint64_t size = 0;
         if (!gguf_read_u64(file, &size)) {
@@ -145,6 +146,8 @@ static bool gguf_skip_value(FILE *file, uint32_t type) {
 }
 
 static bool gguf_read_unsigned(FILE *file, uint32_t type, uint64_t *value) {
+    ASSERT(file != NULL);
+    ASSERT(value != NULL);
     uint8_t bytes[8];
     uint64_t size = gguf_scalar_size(type);
     if (size == 0u || type == 6u || type == 12u || !gguf_read_bytes(file, bytes, size)) {
