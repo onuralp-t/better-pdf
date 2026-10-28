@@ -13,7 +13,7 @@
  * be inspected in a debugger.
  *
  * ASSERT must only be used on expressions without side effects: coverage
- * builds replace the check with __builtin_assume() so that the guards of
+ * builds compile the expression but do not evaluate it, so that the guards of
  * correct programs do not appear as uncovered branches.
  *
  * In coverage builds, expressions evaluated only by ASSERT would no longer be
@@ -24,7 +24,7 @@
 [[noreturn]] void assert_fail(const char *file, uint32_t line, const char *expression);
 
 #if defined(BETTER_PDF_COVERAGE_BUILD)
-#define ASSERT(condition) ((void)__builtin_assume(condition))
+#define ASSERT(condition) ((void)sizeof(condition))
 #else
 #define ASSERT(condition)                                            \
     do {                                                             \

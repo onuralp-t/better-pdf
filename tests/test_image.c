@@ -129,6 +129,32 @@ static void test_image_convert_rgb_in_place(void) {
     CHECK_U64_EQ(pixels[11], 0x11u);
 }
 
+
+static void test_image_plan_clamps_to_one_pixel(void) {
+    image_size size;
+    CHECK(image_plan(1u, 1000u, 100u, &size));
+    CHECK_U64_EQ(size.width, 1u);
+    CHECK_U64_EQ(size.height, 100u);
+    CHECK(image_plan(1000u, 1u, 100u, &size));
+    CHECK_U64_EQ(size.width, 100u);
+    CHECK_U64_EQ(size.height, 1u);
+    CHECK(image_plan(1000u, 1000u, 600u, &size));
+    CHECK_U64_EQ(size.width, 24u);
+    CHECK_U64_EQ(size.height, 24u);
+}
+
+static void test_image_analyze_secondary_channels(void) {
+    const uint8_t pixels[] = {
+        0x01u, 0xFAu, 0x05u, 0xFFu,
+        0xFAu, 0xFAu, 0xFAu, 0xFFu,
+    };
+    image_analysis analysis;
+    image_analyze(pixels, 2u, 1u, 8u, &analysis);
+    CHECK_U64_EQ(analysis.max_chroma, 249u);
+    CHECK_U64_EQ(analysis.ink_pixels, 1u);
+    CHECK(analysis.mode == IMAGE_MODE_RGB);
+}
+
 void register_image_tests(void) {
     test_register("image_plan_portrait_page", test_image_plan_portrait_page);
     test_register("image_plan_landscape_spread", test_image_plan_landscape_spread);
@@ -141,4 +167,6 @@ void register_image_tests(void) {
     test_register("image_analyze_chroma_boundary", test_image_analyze_chroma_boundary);
     test_register("image_convert_gray_in_place", test_image_convert_gray_in_place);
     test_register("image_convert_rgb_in_place", test_image_convert_rgb_in_place);
+    test_register("image_plan_clamps_to_one_pixel", test_image_plan_clamps_to_one_pixel);
+    test_register("image_analyze_secondary_channels", test_image_analyze_secondary_channels);
 }

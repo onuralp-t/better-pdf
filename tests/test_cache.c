@@ -88,6 +88,16 @@ static void test_cache_init_rejects_long_work_dir(void) {
     CHECK(!value.ready);
 }
 
+
+static void test_cache_init_reports_directory_failure(void) {
+    cache value;
+    char error[128];
+    CHECK(platform_write_file("tests/tmp/cache-blocker", "x", 1));
+    CHECK(!cache_init(&value, "tests/tmp/cache-blocker", TEST_CACHE_KEY, error, sizeof error));
+    CHECK(!value.ready);
+    CHECK(strstr(error, "could not create") != NULL);
+}
+
 void register_cache_tests(void) {
     test_register("cache_key_is_stable_and_sensitive", test_cache_key_is_stable_and_sensitive);
     test_register("cache_paths", test_cache_paths);
@@ -95,4 +105,5 @@ void register_cache_tests(void) {
     test_register("cache_empty_page", test_cache_empty_page);
     test_register("cache_manifest", test_cache_manifest);
     test_register("cache_init_rejects_long_work_dir", test_cache_init_rejects_long_work_dir);
+    test_register("cache_init_reports_directory_failure", test_cache_init_reports_directory_failure);
 }

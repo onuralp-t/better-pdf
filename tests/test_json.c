@@ -251,6 +251,91 @@ static void test_json_string_raw_utf8(void) {
     CHECK_U64_EQ(written, 10u);
 }
 
+
+static void test_json_malformed_strings(void) {
+    json_value root;
+    CHECK(!json_parse_document("\"unterminated", 13u, &root));
+    CHECK(!json_parse_document("\"bad\\", 5u, &root));
+    CHECK(!json_parse_document("\"bad\\u12\"", 10u, &root));
+    CHECK(!json_parse_document("\"bad\\uZZZZ\"", 12u, &root));
+    CHECK(!json_parse_document("\"bad\\q\"", 7u, &root));
+    CHECK(!json_parse_document("\"bad\x01\"", 6u, &root));
+
+    const char *lone_high = "\"\\ud83d\"";
+    CHECK(json_parse_document(lone_high, text_length(lone_high), &root));
+    char output[16];
+    uint64_t written = 0;
+    CHECK(!json_string_copy(lone_high, text_length(lone_high), root, output, sizeof output, &written));
+
+    const char *lone_low = "\"\\ude00\"";
+    CHECK(json_parse_document(lone_low, text_length(lone_low), &root));
+    CHECK(!json_string_copy(lone_low, text_length(lone_low), root, output, sizeof output, &written));
+
+    const char *bad_pair = "\"\\ud83d\\u0041\"";
+    CHECK(json_parse_document(bad_pair, text_length(bad_pair), &root));
+    CHECK(!json_string_copy(bad_pair, text_length(bad_pair), root, output, sizeof output, &written));
+
+}
+
+static void test_json_malformed_numbers_and_literals(void) {
+    json_value root;
+    CHECK(!json_parse_document("-", 1u, &root));
+    CHECK(!json_parse_document("1.", 2u, &root));
+    CHECK(!json_parse_document("1e", 2u, &root));
+    CHECK(!json_parse_document("1e+", 3u, &root));
+    CHECK(!json_parse_document("01", 2u, &root));
+    CHECK(!json_parse_document("+1", 2u, &root));
+    CHECK(!json_parse_document("tru", 3u, &root));
+    CHECK(!json_parse_document("falsey", 6u, &root));
+    CHECK(!json_parse_document("nul", 3u, &root));
+    CHECK(!json_parse_document("{", 1u, &root));
+    CHECK(!json_parse_document("[", 1u, &root));
+    CHECK(!json_parse_document("\"a\" \"b\"", 7u, &root));
+    CHECK(json_parse_document(" 1 ", 3u, &root));
+    CHECK_U64_EQ(root.kind, JSON_KIND_NUMBER);
+}
+
+static void test_json_malformed_members(void) {
+    json_value root;
+    const char *empty_object = "{}";
+    CHECK(json_parse_document(empty_object, 2u, &root));
+    json_value member;
+    CHECK(!json_object_get(empty_object, 2u, root, "a", &member));
+
+    const char *missing_colon = "{\"a\" 1}";
+    CHECK(json_parse_document(missing_colon, 7u, &root));
+    CHECK(!json_object_get(missing_colon, 7u, root, "a", &member));
+
+    const char *missing_comma = "{\"a\":1 \"b\":2}";
+    CHECK(json_parse_document(missing_comma, 13u, &root));
+    CHECK(!json_object_get(missing_comma, 13u, root, "b", &member));
+
+    const char *non_string_key = "{1:2}";
+    CHECK(json_parse_document(non_string_key, 5u, &root));
+    CHECK(!json_object_get(non_string_key, 5u, root, "1", &member));
+
+    const char *bad_member_value = "{\"a\":}";
+    CHECK(json_parse_document(bad_member_value, 6u, &root));
+    CHECK(!json_object_get(bad_member_value, 6u, root, "a", &member));
+
+    const char *empty_array = "[]";
+    CHECK(json_parse_document(empty_array, 2u, &root));
+    json_value element;
+    CHECK(!json_array_get(empty_array, 2u, root, 0u, &element));
+
+    const char *bad_array_value = "[1,]";
+    CHECK(json_parse_document(bad_array_value, 4u, &root));
+    CHECK(!json_array_get(bad_array_value, 4u, root, 1u, &element));
+
+    const char *missing_array_comma = "[1 2]";
+    CHECK(json_parse_document(missing_array_comma, 5u, &root));
+    CHECK(!json_array_get(missing_array_comma, 5u, root, 1u, &element));
+
+    const char *escaped_key = "{\"a\\u0062\":1}";
+    CHECK(json_parse_document(escaped_key, 13u, &root));
+    CHECK(!json_object_get(escaped_key, 13u, root, "ab", &member));
+}
+
 void register_json_tests(void) {
     test_register("json_document_shape", test_json_document_shape);
     test_register("json_document_rejects_trailing_garbage", test_json_document_rejects_trailing_garbage);
@@ -263,5 +348,8 @@ void register_json_tests(void) {
     test_register("json_malformed", test_json_malformed);
     test_register("json_escaped_key_is_not_matched", test_json_escaped_key_is_not_matched);
     test_register("json_string_raw_utf8", test_json_string_raw_utf8);
+    test_register("json_malformed_strings", test_json_malformed_strings);
+    test_register("json_malformed_numbers_and_literals", test_json_malformed_numbers_and_literals);
+    test_register("json_malformed_members", test_json_malformed_members);
     test_register("json_scan_value_at_offset", test_json_scan_value_at_offset);
 }

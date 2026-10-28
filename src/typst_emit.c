@@ -37,9 +37,9 @@ static void typst_emit_format(emitter *target, const char *format, ...) {
     char buffer[256];
     va_list arguments;
     va_start(arguments, format);
-    int written = vsnprintf(buffer, sizeof buffer, format, arguments);
+    uint64_t written = (uint64_t)vsnprintf(buffer, sizeof buffer, format, arguments);
     va_end(arguments);
-    if (written < 0 || (uint64_t)written >= (uint64_t)sizeof buffer) {
+    if (written >= (uint64_t)sizeof buffer) {
         target->failed = true;
         return;
     }

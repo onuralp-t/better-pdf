@@ -68,6 +68,7 @@ void test_check_u64_eq(uint64_t actual, uint64_t expected, const char *file, uin
 }
 
 int main(void) {
+    (void)setvbuf(stdout, NULL, _IONBF, 0);
     log_init(stderr);
     if (!platform_create_directories("tests/tmp")) {
         printf("could not create tests/tmp\n");

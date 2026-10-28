@@ -70,6 +70,20 @@ static void test_geometry_rejects_empty_and_zero(void) {
     CHECK(!geometry_from_page_sizes(widths, heights, 1u, 105u, &geometry));
 }
 
+
+static void test_geometry_sorts_descending_and_zero_height(void) {
+    const uint32_t widths[] = { 3000u, 2000u, 1000u };
+    const uint32_t heights[] = { 5000u, 4000u, 3000u };
+    page_geometry geometry;
+    CHECK(geometry_from_page_sizes(widths, heights, 3u, 100u, &geometry));
+    CHECK_U64_EQ(geometry.page_width_pt10, 2000u);
+    CHECK_U64_EQ(geometry.page_height_pt10, 4000u);
+
+    const uint32_t flat_width[] = { 4000u };
+    const uint32_t flat_height[] = { 0u };
+    CHECK(!geometry_from_page_sizes(flat_width, flat_height, 1u, 100u, &geometry));
+}
+
 void register_geometry_tests(void) {
     test_register("geometry_portrait", test_geometry_portrait);
     test_register("geometry_clamps_margins", test_geometry_clamps_margins);
@@ -77,4 +91,5 @@ void register_geometry_tests(void) {
     test_register("geometry_median_ignores_outliers", test_geometry_median_ignores_outliers);
     test_register("geometry_samples_large_books", test_geometry_samples_large_books);
     test_register("geometry_rejects_empty_and_zero", test_geometry_rejects_empty_and_zero);
+    test_register("geometry_sorts_descending_and_zero_height", test_geometry_sorts_descending_and_zero_height);
 }

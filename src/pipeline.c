@@ -12,10 +12,6 @@
 #define PIPELINE_REQUEST_PRELUDE "{\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,"
 #define PIPELINE_REQUEST_SUFFIX "\"}},{\"type\":\"text\",\"text\":\"OCR:\"}]}],\"temperature\":0,\"max_tokens\":4096}"
 
-uint64_t pipeline_text_capacity(uint32_t page_count) {
-    return document_text_capacity(page_count);
-}
-
 bool pipeline_plan_sizes(uint32_t page_count, uint32_t max_pixels, pipeline_sizes *sizes) {
     ASSERT(sizes != NULL);
     if (page_count == 0u || max_pixels == 0u) {
@@ -55,8 +51,8 @@ bool pipeline_resolve_max_pixels(const char *third_party_dir, uint32_t override_
     }
 
     char path[1024];
-    int written = snprintf(path, sizeof path, "%s\\PaddleOCR-VL-1.6-GGUF\\PaddleOCR-VL-1.6-GGUF-mmproj.gguf", third_party_dir);
-    if (written < 0 || (uint64_t)written >= sizeof path) {
+    uint64_t written = (uint64_t)snprintf(path, sizeof path, "%s\\PaddleOCR-VL-1.6-GGUF\\PaddleOCR-VL-1.6-GGUF-mmproj.gguf", third_party_dir);
+    if (written >= sizeof path) {
         (void)snprintf(error, (size_t)error_capacity, "third-party directory path is too long");
         return false;
     }
@@ -111,8 +107,8 @@ bool pipeline_work_directory(const char *output_path, const char *work_dir_optio
         memcpy(buffer, work_dir_option, (size_t)length + 1u);
         return true;
     }
-    int written = snprintf(buffer, (size_t)capacity, "%s.work", output_path);
-    return written > 0 && (uint64_t)written < capacity;
+    uint64_t written = (uint64_t)snprintf(buffer, (size_t)capacity, "%s.work", output_path);
+    return written < capacity;
 }
 
 bool pipeline_file_stem(const char *path, char *buffer, uint64_t capacity) {

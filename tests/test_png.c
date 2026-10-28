@@ -134,6 +134,35 @@ static void test_png_multi_block(void) {
     CHECK_U64_EQ(zlib[second], 1u);
 }
 
+
+static void test_png_large_image_spans_blocks(void) {
+    static uint8_t pixels[200u * 300u * 3u];
+    static uint8_t output[200u * 300u * 3u + 4096u];
+    for (uint32_t index = 0; index < sizeof pixels; index += 1) {
+        pixels[index] = (uint8_t)(index % 251u);
+    }
+    uint64_t capacity = png_encoded_capacity(200u, 300u, PNG_MODE_RGB);
+    CHECK(capacity <= sizeof output);
+    uint64_t length = png_encode(pixels, 200u, 300u, PNG_MODE_RGB, output, capacity);
+    CHECK(length > 65535u);
+    CHECK(length <= capacity);
+    CHECK_U64_EQ(output[0], 0x89u);
+    CHECK_U64_EQ(output[12], 'I');
+    CHECK_U64_EQ(output[13], 'H');
+    CHECK_U64_EQ(output[14], 'D');
+    CHECK_U64_EQ(output[15], 'R');
+    CHECK_U64_EQ(output[16], 0u);
+    CHECK_U64_EQ(output[17], 0u);
+    CHECK_U64_EQ(output[18], 0u);
+    CHECK_U64_EQ(output[19], 200u);
+    CHECK_U64_EQ(output[20], 0u);
+    CHECK_U64_EQ(output[21], 0u);
+    CHECK_U64_EQ(output[22], 1u);
+    CHECK_U64_EQ(output[23], 44u);
+    CHECK_U64_EQ(output[24], 8u);
+    CHECK_U64_EQ(output[25], 2u);
+}
+
 void register_png_tests(void) {
     test_register("png_crc32_vector", test_png_crc32_vector);
     test_register("png_adler32_vector", test_png_adler32_vector);
@@ -143,4 +172,5 @@ void register_png_tests(void) {
     test_register("png_odd_width_lengths", test_png_odd_width_lengths);
     test_register("png_capacity_boundary", test_png_capacity_boundary);
     test_register("png_multi_block", test_png_multi_block);
+    test_register("png_large_image_spans_blocks", test_png_large_image_spans_blocks);
 }

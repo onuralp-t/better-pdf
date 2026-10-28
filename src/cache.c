@@ -34,8 +34,8 @@ bool cache_init(cache *value, const char *work_dir, uint64_t key, char *error, u
     ASSERT(work_dir != NULL);
     ASSERT(error != NULL);
 
-    int written = snprintf(value->directory, sizeof value->directory, "%s\\pages\\%016llx", work_dir, (unsigned long long)key);
-    if (written < 0 || (uint64_t)written >= (uint64_t)sizeof value->directory) {
+    uint64_t written = (uint64_t)snprintf(value->directory, sizeof value->directory, "%s\\pages\\%016llx", work_dir, (unsigned long long)key);
+    if (written >= (uint64_t)sizeof value->directory) {
         (void)snprintf(error, (size_t)error_capacity, "work directory path is too long");
         value->ready = false;
         return false;
@@ -54,8 +54,8 @@ bool cache_page_path(const cache *value, uint32_t page_index, char *output, uint
     ASSERT(output != NULL);
     ASSERT(value->ready);
 
-    int written = snprintf(output, (size_t)output_capacity, "%s\\%05u.txt", value->directory, page_index + 1u);
-    return written > 0 && (uint64_t)written < output_capacity;
+    uint64_t written = (uint64_t)snprintf(output, (size_t)output_capacity, "%s\\%05u.txt", value->directory, page_index + 1u);
+    return written < output_capacity;
 }
 
 bool cache_read_page(const cache *value, uint32_t page_index, char *buffer, uint64_t capacity, uint64_t *length, bool *found) {
@@ -87,8 +87,8 @@ bool cache_write_manifest(const cache *value, const char *text, uint64_t length)
     ASSERT(text != NULL);
 
     char path[CACHE_PATH_CAPACITY];
-    int written = snprintf(path, sizeof path, "%s\\manifest.txt", value->directory);
-    if (written < 0 || (uint64_t)written >= (uint64_t)sizeof path) {
+    uint64_t written = (uint64_t)snprintf(path, sizeof path, "%s\\manifest.txt", value->directory);
+    if (written >= (uint64_t)sizeof path) {
         return false;
     }
     return platform_write_file(path, text, length);
