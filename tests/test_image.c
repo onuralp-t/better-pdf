@@ -155,6 +155,16 @@ static void test_image_analyze_secondary_channels(void) {
     CHECK(analysis.mode == IMAGE_MODE_RGB);
 }
 
+static void test_image_analyze_blue_dominant(void) {
+    /* Blue carries the largest channel here, so the third maximum wins. */
+    const uint8_t blue[] = { 0xFFu, 0x00u, 0x00u, 0xFFu };
+    image_analysis analysis;
+    image_analyze(blue, 1u, 1u, 4u, &analysis);
+    CHECK_U64_EQ(analysis.max_chroma, 255u);
+    CHECK(analysis.mode == IMAGE_MODE_RGB);
+    CHECK_U64_EQ(analysis.ink_pixels, 1u);
+}
+
 void register_image_tests(void) {
     test_register("image_plan_portrait_page", test_image_plan_portrait_page);
     test_register("image_plan_landscape_spread", test_image_plan_landscape_spread);
@@ -169,4 +179,5 @@ void register_image_tests(void) {
     test_register("image_convert_rgb_in_place", test_image_convert_rgb_in_place);
     test_register("image_plan_clamps_to_one_pixel", test_image_plan_clamps_to_one_pixel);
     test_register("image_analyze_secondary_channels", test_image_analyze_secondary_channels);
+    test_register("image_analyze_blue_dominant", test_image_analyze_blue_dominant);
 }
