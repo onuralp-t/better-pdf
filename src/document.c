@@ -96,6 +96,8 @@ static uint32_t document_first_content_block(const document *doc, uint32_t page_
 }
 
 static bool document_push_block(document *doc, block_kind kind, uint8_t level, uint16_t footnote_number, uint64_t text_offset, uint32_t text_length) {
+    ASSERT(doc != NULL);
+    ASSERT(text_length > 0u);
     if (doc->block_count >= doc->block_capacity) {
         return false;
     }
@@ -287,6 +289,9 @@ bool document_add_page(document *doc, uint32_t source_page_index, const char *te
 }
 
 static bool document_same_normalized(const document *doc, const block *first, const block *second) {
+    ASSERT(doc != NULL);
+    ASSERT(first != NULL);
+    ASSERT(second != NULL);
     char first_text[DOCUMENT_RUNNING_HEAD_CAPACITY];
     char second_text[DOCUMENT_RUNNING_HEAD_CAPACITY];
     uint64_t first_length = ocr_normalize(document_block_text(doc, first), first->text_length, first_text, sizeof first_text);

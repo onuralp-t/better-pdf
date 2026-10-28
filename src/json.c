@@ -23,6 +23,8 @@ static uint32_t json_hex_value(char character) {
 }
 
 static uint64_t json_skip_whitespace(const char *text, uint64_t length, uint64_t offset) {
+    ASSERT(text != NULL);
+    ASSERT(offset <= length);
     uint64_t index = offset;
     while (index < length) {
         char character = text[index];
@@ -35,6 +37,7 @@ static uint64_t json_skip_whitespace(const char *text, uint64_t length, uint64_t
 }
 
 static bool json_scan_string(const char *text, uint64_t length, uint64_t offset, uint64_t *end) {
+    ASSERT(text != NULL);
     ASSERT(end != NULL);
     /* Callers only reach this function when the current character is a quote. */
     ASSERT(offset < length);
@@ -148,6 +151,10 @@ static bool json_scan_number(const char *text, uint64_t length, uint64_t offset,
 }
 
 static bool json_scan_literal(const char *text, uint64_t length, uint64_t offset, const char *literal, uint64_t *end) {
+    ASSERT(text != NULL);
+    ASSERT(literal != NULL);
+    ASSERT(end != NULL);
+    ASSERT(offset <= length);
     uint64_t literal_length = (uint64_t)strlen(literal);
     if (offset + literal_length > length) {
         return false;
@@ -313,6 +320,9 @@ bool json_array_get(const char *text, uint64_t length, json_value array, uint64_
 }
 
 static bool json_append_utf8(char *output, uint64_t capacity, uint64_t *used, uint32_t code_point) {
+    ASSERT(output != NULL);
+    ASSERT(used != NULL);
+    ASSERT(*used <= capacity);
     uint32_t bytes = 1u;
     if (code_point >= 0x10000u) {
         bytes = 4u;
@@ -344,6 +354,7 @@ static bool json_append_utf8(char *output, uint64_t capacity, uint64_t *used, ui
 }
 
 static uint32_t json_parse_hex4(const char *text, uint64_t offset) {
+    ASSERT(text != NULL);
     uint32_t value = 0;
     for (uint32_t digit = 0; digit < 4u; digit += 1) {
         value = (value << 4) | json_hex_value(text[offset + digit]);

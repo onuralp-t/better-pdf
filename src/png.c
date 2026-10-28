@@ -10,6 +10,11 @@
 #define PNG_ZLIB_HEADER_BYTES 2u
 #define PNG_ADLER_BYTES 4u
 
+/* The colour type in IHDR is the mode value itself, so the enum must keep the
+ * PNG numbers rather than a compact 0/1 layout. */
+STATIC_ASSERT(PNG_MODE_GRAY == 0, "the IHDR colour type is the mode value");
+STATIC_ASSERT(PNG_MODE_RGB == 2, "the IHDR colour type is the mode value");
+
 /* ASSERT only type-checks its expression in release and coverage builds, so a
  * short-circuit branch there could never be taken. Both comparisons are plain
  * values, so they can be joined without a branch. */
@@ -21,11 +26,15 @@ static uint32_t png_bytes_per_pixel(png_mode mode) {
 }
 
 static uint64_t png_filtered_length(uint32_t width, uint32_t height, png_mode mode) {
+    ASSERT(width > 0);
+    ASSERT(height > 0);
+    PNG_ASSERT_MODE(mode);
     uint64_t row_bytes = (uint64_t)width * (uint64_t)png_bytes_per_pixel(mode);
     return (uint64_t)height * (row_bytes + 1u);
 }
 
 static uint64_t png_block_count(uint64_t filtered_length) {
+    ASSERT(filtered_length > 0u);
     return (filtered_length + PNG_STORED_BLOCK_MAX - 1u) / PNG_STORED_BLOCK_MAX;
 }
 
@@ -43,6 +52,7 @@ uint32_t png_crc32(const uint8_t *data, uint64_t length) {
 }
 
 static uint32_t png_adler32_update(uint32_t adler, const uint8_t *data, uint64_t length) {
+    ASSERT(data != NULL);
     uint32_t low = adler & 0xFFFFu;
     uint32_t high = (adler >> 16) & 0xFFFFu;
     for (uint64_t index = 0; index < length; index += 1) {
@@ -69,6 +79,7 @@ uint64_t png_encoded_capacity(uint32_t width, uint32_t height, png_mode mode) {
 }
 
 static void png_write_u32_big_endian(uint8_t *target, uint32_t value) {
+    ASSERT(target != NULL);
     target[0] = (uint8_t)((value >> 24) & 0xFFu);
     target[1] = (uint8_t)((value >> 16) & 0xFFu);
     target[2] = (uint8_t)((value >> 8) & 0xFFu);
@@ -76,6 +87,12 @@ static void png_write_u32_big_endian(uint8_t *target, uint32_t value) {
 }
 
 static uint64_t png_write_chunk(uint8_t *output, uint64_t offset, const char *type, const uint8_t *data, uint32_t length) {
+    ASSERT(output != NULL);
+    ASSERT(type != NULL);
+    /* The IEND chunk has no data at all. */
+    if (length > 0u) {
+        ASSERT(data != NULL);
+    }
     png_write_u32_big_endian(output + offset, length);
     offset += 4u;
     for (uint32_t index = 0; index < 4u; index += 1) {
@@ -95,6 +112,10 @@ static uint64_t png_write_chunk(uint8_t *output, uint64_t offset, const char *ty
  * to every row; the pixel rows themselves are borrowed from the raster, which
  * avoids materializing a second copy of the image. */
 static void png_copy_filtered_range(const uint8_t *pixels, uint64_t row_bytes, uint64_t begin, uint64_t end, uint8_t *output) {
+    ASSERT(pixels != NULL);
+    ASSERT(row_bytes > 0u);
+    ASSERT(begin <= end);
+    ASSERT(output != NULL);
     uint64_t filtered_row_bytes = row_bytes + 1u;
     uint64_t offset = begin;
     while (offset < end) {

@@ -16,6 +16,7 @@ typedef struct {
 
 static void typst_emit_raw(emitter *target, const char *text, uint64_t length) {
     ASSERT(target != NULL);
+    ASSERT(text != NULL);
     if (target->failed) {
         return;
     }
@@ -28,6 +29,7 @@ static void typst_emit_raw(emitter *target, const char *text, uint64_t length) {
 }
 
 static void typst_emit_literal(emitter *target, const char *text) {
+    ASSERT(target != NULL);
     ASSERT(text != NULL);
     typst_emit_raw(target, text, (uint64_t)strlen(text));
 }
@@ -46,6 +48,7 @@ static void typst_emit_format(emitter *target, const char *format, ...) {
 }
 
 static void typst_emit_pt10(emitter *target, uint32_t value) {
+    ASSERT(target != NULL);
     typst_emit_format(target, "%u.%upt", value / 10u, value % 10u);
 }
 
@@ -71,6 +74,7 @@ static bool typst_escape_character(char character) {
 
 static void typst_emit_escaped(emitter *target, const char *text, uint64_t length) {
     ASSERT(target != NULL);
+    ASSERT(text != NULL);
     for (uint64_t index = 0; index < length; index += 1) {
         char character = text[index];
         if (typst_escape_character(character)) {
@@ -82,6 +86,7 @@ static void typst_emit_escaped(emitter *target, const char *text, uint64_t lengt
 
 static void typst_emit_string_literal(emitter *target, const char *text, uint64_t length) {
     ASSERT(target != NULL);
+    ASSERT(text != NULL);
     for (uint64_t index = 0; index < length; index += 1) {
         char character = text[index];
         if (character == '\\' || character == '"') {
@@ -113,6 +118,9 @@ static uint32_t typst_find_footnote(const document *doc, const page *current, ui
 }
 
 static void typst_emit_footnote_body(emitter *target, const document *doc, const block *value) {
+    ASSERT(target != NULL);
+    ASSERT(doc != NULL);
+    ASSERT(value != NULL);
     const char *text = document_block_text(doc, value);
     uint64_t length = value->text_length;
     uint64_t begin = ocr_strip_footnote_marker(text, length);

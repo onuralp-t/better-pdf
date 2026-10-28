@@ -19,6 +19,8 @@ static char http_lower(char character) {
 }
 
 static bool http_equals_ignore_case(const uint8_t *data, uint64_t length, const char *text) {
+    ASSERT(data != NULL);
+    ASSERT(text != NULL);
     uint64_t text_length = (uint64_t)strlen(text);
     if (length != text_length) {
         return false;
@@ -32,6 +34,8 @@ static bool http_equals_ignore_case(const uint8_t *data, uint64_t length, const 
 }
 
 static bool http_contains_ignore_case(const uint8_t *data, uint64_t length, const char *text) {
+    ASSERT(data != NULL);
+    ASSERT(text != NULL);
     uint64_t text_length = (uint64_t)strlen(text);
     ASSERT(text_length > 0);
     if (text_length > length) {

@@ -15,6 +15,7 @@
 #define OCR_RECEIVE_TIMEOUT 600000u
 
 static bool ocr_send_all(SOCKET socket, const char *data, uint64_t length) {
+    ASSERT(data != NULL);
     uint64_t sent = 0;
     while (sent < length) {
         int result = send(socket, data + sent, (int)(length - sent), 0);

@@ -66,6 +66,9 @@ static bool typst_run_process(const char *command, const char *work_dir, const c
 }
 
 static bool typst_try_compile(const typst_run_config *config, const char *extra, char *error, uint64_t error_capacity) {
+    ASSERT(config != NULL);
+    ASSERT(extra != NULL);
+    ASSERT(error != NULL);
     char command[2048];
     int written = snprintf(command, sizeof command, "\"%s\" compile%s --root \"%s\" \"%s\" \"%s\"",
         config->executable, extra, config->work_dir, config->source_path, config->pdf_path);

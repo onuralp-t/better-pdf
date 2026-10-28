@@ -10,6 +10,7 @@
 #define CACHE_FNV_PRIME 0x100000001b3ull
 
 static uint64_t cache_mix(uint64_t hash, const void *data, uint64_t length) {
+    ASSERT((length == 0u) | (data != NULL));
     const uint8_t *bytes = (const uint8_t *)data;
     for (uint64_t index = 0; index < length; index += 1) {
         hash ^= (uint64_t)bytes[index];
@@ -75,6 +76,8 @@ bool cache_read_page(const cache *value, uint32_t page_index, char *buffer, uint
  * interrupted run can never leave a truncated page that a later run would
  * read as if it were complete. */
 static bool cache_write_atomic(const char *path, const char *text, uint64_t length) {
+    ASSERT(path != NULL);
+    ASSERT(text != NULL);
     char temporary[CACHE_PATH_CAPACITY];
     uint64_t written = (uint64_t)snprintf(temporary, sizeof temporary, "%s.tmp", path);
     if (written >= (uint64_t)sizeof temporary) {

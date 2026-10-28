@@ -13,6 +13,7 @@
 #define GEOMETRY_MARGIN_Y_MAX_PT10 720u
 
 static uint32_t geometry_clamp(uint32_t value, uint32_t minimum, uint32_t maximum) {
+    ASSERT(minimum <= maximum);
     if (value < minimum) {
         return minimum;
     }
@@ -23,6 +24,8 @@ static uint32_t geometry_clamp(uint32_t value, uint32_t minimum, uint32_t maximu
 }
 
 static void geometry_sort(uint32_t *values, uint32_t count) {
+    ASSERT(values != NULL);
+    ASSERT(count > 0u);
     for (uint32_t index = 1; index < count; index += 1) {
         uint32_t value = values[index];
         uint32_t position = index;
@@ -35,6 +38,7 @@ static void geometry_sort(uint32_t *values, uint32_t count) {
 }
 
 static uint32_t geometry_median(uint32_t *values, uint32_t count) {
+    ASSERT(values != NULL);
     ASSERT(count > 0);
     geometry_sort(values, count);
     return values[count / 2u];

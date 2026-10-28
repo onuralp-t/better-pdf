@@ -24,6 +24,8 @@ static char ocr_lower(char character) {
 }
 
 static bool ocr_line_is_blank(const char *text, uint64_t begin, uint64_t end) {
+    ASSERT(text != NULL);
+    ASSERT(begin <= end);
     for (uint64_t index = begin; index < end; index += 1) {
         if (!ocr_is_space(text[index])) {
             return false;
@@ -284,6 +286,7 @@ uint64_t ocr_strip_footnote_marker(const char *text, uint64_t length) {
 }
 
 uint32_t ocr_word_count(const char *text, uint64_t length) {
+    ASSERT(text != NULL);
     uint32_t words = 0;
     bool in_word = false;
     for (uint64_t index = 0; index < length; index += 1) {
@@ -298,6 +301,7 @@ uint32_t ocr_word_count(const char *text, uint64_t length) {
 }
 
 bool ocr_is_all_caps(const char *text, uint64_t length) {
+    ASSERT(text != NULL);
     uint32_t letters = 0;
     for (uint64_t index = 0; index < length; index += 1) {
         char character = text[index];
@@ -312,6 +316,7 @@ bool ocr_is_all_caps(const char *text, uint64_t length) {
 }
 
 static bool ocr_is_chapter_marker(const char *text, uint64_t length) {
+    ASSERT(text != NULL);
     static const char *markers[] = { "chapter", "part", "book" };
     for (uint32_t index = 0; index < 3u; index += 1) {
         uint64_t marker_length = (uint64_t)strlen(markers[index]);
@@ -440,6 +445,8 @@ bool ocr_is_parenthetical(const char *text, uint64_t length) {
 }
 
 static bool ocr_starts_with_ignore_case(const char *text, uint64_t length, const char *prefix) {
+    ASSERT(text != NULL);
+    ASSERT(prefix != NULL);
     uint64_t prefix_length = (uint64_t)strlen(prefix);
     if (length < prefix_length) {
         return false;
