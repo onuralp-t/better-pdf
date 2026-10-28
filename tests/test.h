@@ -25,5 +25,7 @@ void register_cli_tests(void);
 void register_base64_tests(void);
 void register_png_tests(void);
 void register_image_tests(void);
+void register_json_tests(void);
+void register_http_message_tests(void);
 
 #endif

@@ -80,6 +80,8 @@ int main(void) {
     register_base64_tests();
     register_png_tests();
     register_image_tests();
+    register_json_tests();
+    register_http_message_tests();
 
     for (uint32_t index = 0; index < test_entry_count; index += 1) {
         uint32_t before = test_failure_count;
