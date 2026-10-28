@@ -32,5 +32,7 @@ void register_ocr_text_tests(void);
 void register_document_tests(void);
 void register_geometry_tests(void);
 void register_typst_emit_tests(void);
+void register_cache_tests(void);
+void register_pipeline_tests(void);
 
 #endif

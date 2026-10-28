@@ -1,4 +1,5 @@
 #define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
 #include <windows.h>
 #include <shellapi.h>
 #include <wchar.h>
@@ -34,6 +35,15 @@ double platform_monotonic_seconds(void) {
 void platform_enable_utf8_console(void) {
     (void)SetConsoleOutputCP(CP_UTF8);
     (void)SetConsoleCP(CP_UTF8);
+}
+
+bool platform_network_init(void) {
+    WSADATA data;
+    return WSAStartup(MAKEWORD(2, 2), &data) == 0;
+}
+
+void platform_network_shutdown(void) {
+    (void)WSACleanup();
 }
 
 bool platform_read_file(const char *path, char *buffer, uint64_t capacity, uint64_t *length, bool *found) {

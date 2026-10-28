@@ -26,5 +26,7 @@ bool platform_remove_directory(const char *path);
 uint32_t platform_utf8_arguments(const char **arguments, char *storage, uint64_t storage_capacity);
 
 void platform_enable_utf8_console(void);
+bool platform_network_init(void);
+void platform_network_shutdown(void);
 
 #endif
