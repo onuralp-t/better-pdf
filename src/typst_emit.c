@@ -34,15 +34,14 @@ static void typst_emit_literal(emitter *target, const char *text) {
 
 static void typst_emit_format(emitter *target, const char *format, ...) {
     ASSERT(target != NULL);
-    char buffer[256];
+    /* Every format string on a call site is short and takes at most two
+     * uint32 values, so the longest result is well under this buffer. */
+    char buffer[64];
     va_list arguments;
     va_start(arguments, format);
     uint64_t written = (uint64_t)vsnprintf(buffer, sizeof buffer, format, arguments);
     va_end(arguments);
-    if (written >= (uint64_t)sizeof buffer) {
-        target->failed = true;
-        return;
-    }
+    ASSERT(written < (uint64_t)sizeof buffer);
     typst_emit_raw(target, buffer, (uint64_t)written);
 }
 
@@ -129,7 +128,10 @@ static void typst_emit_inline(emitter *target, const document *doc, const page *
 
     const char *text = document_block_text(doc, value);
     uint64_t length = value->text_length;
-    if (length > 0u && typst_leading_marker(text[0])) {
+    /* The document builder never stores an empty block: an empty paragraph is
+     * dropped before it becomes one. */
+    ASSERT(length > 0u);
+    if (typst_leading_marker(text[0])) {
         typst_emit_raw(target, "\\", 1u);
     }
 
@@ -171,7 +173,9 @@ static void typst_emit_block(emitter *target, const document *doc, const page *c
 
     block_kind kind = (block_kind)value->kind;
     if (kind == BLOCK_HEADING) {
-        typst_emit_format(target, "#heading(level: %u)[", value->level == 0u ? 1u : value->level);
+        /* Only the classifier creates headings, and it always assigns a level. */
+        ASSERT(value->level >= 1u);
+        typst_emit_format(target, "#heading(level: %u)[", (uint32_t)value->level);
         typst_emit_inline(target, doc, current, value, footnote_used);
         typst_emit_literal(target, "]");
         return;
@@ -179,11 +183,12 @@ static void typst_emit_block(emitter *target, const document *doc, const page *c
     if (kind == BLOCK_MATH) {
         const char *text = document_block_text(doc, value);
         uint64_t length = value->text_length;
-        if (length >= 4u) {
-            typst_emit_literal(target, "#align(center)[$ ");
-            typst_emit_raw(target, text + 2u, length - 4u);
-            typst_emit_literal(target, " $]");
-        }
+        /* Only the classifier creates math blocks, and it requires the four
+         * dollar signs that are stripped here. */
+        ASSERT(length >= 4u);
+        typst_emit_literal(target, "#align(center)[$ ");
+        typst_emit_raw(target, text + 2u, length - 4u);
+        typst_emit_literal(target, " $]");
         return;
     }
     typst_emit_inline(target, doc, current, value, footnote_used);

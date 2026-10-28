@@ -186,6 +186,115 @@ static void test_typst_empty_page(void) {
     CHECK(contains("#set page("));
 }
 
+static void test_typst_escapes_list_markers(void) {
+    /* Typst reads these first characters as list, heading, and term markers,
+     * so a paragraph that begins with one has to keep its literal meaning. */
+    const char *pages[] = { "+ plus item\n\n= equals item\n\n/ slash item\n" };
+    const uint32_t indices[] = { 0 };
+    const document *doc = build_document(pages, indices, 1, "book");
+    CHECK(emit(doc, false) > 0u);
+    CHECK(contains("\\+ plus item"));
+    CHECK(contains("\\= equals item"));
+    CHECK(contains("\\/ slash item"));
+}
+
+static void test_typst_superscript_with_wrong_number(void) {
+    /* The page has a footnote 1 and a reference to 2, so the reference must
+     * stay a superscript and the orphan footnote must still be printed. */
+    const char *pages[] = { "Body one.\n\nBody two.\n\nBody three.\n\nBody four with a reference\xC2\xB2 here.\n\n1 A note for another number.\n" };
+    const uint32_t indices[] = { 0 };
+    const document *doc = build_document(pages, indices, 1, "book");
+    CHECK(emit(doc, false) > 0u);
+    CHECK(contains("#super[2]"));
+    CHECK(contains("#footnote[A note for another number.]"));
+}
+
+static void test_typst_repeated_superscript(void) {
+    /* Footnote 1 is referenced twice, so only the first reference may carry
+     * the note body; the second one stays a superscript. */
+    const char *pages[] = { "Text\xC2\xB9 and more\xC2\xB9.\n\n1 A note.\n" };
+    const uint32_t indices[] = { 0 };
+    const document *doc = build_document(pages, indices, 1, "book");
+    CHECK(emit(doc, false) > 0u);
+    CHECK_U64_EQ(count_occurrences("#footnote["), 1u);
+    CHECK(contains("#super[1]"));
+}
+
+static void test_typst_two_unmatched_footnotes(void) {
+    /* Both notes sit in the tail of the page without a reference; they are
+     * printed after the last block, separated by a space so typst keeps them
+     * apart. */
+    const char *pages[] = {
+        "Body one.\n\nBody two.\n\nBody three.\n\nBody four.\n\nBody five.\n\nBody six.\n\n1 First note.\n\n2 Second note.\n",
+    };
+    const uint32_t indices[] = { 0 };
+    const document *doc = build_document(pages, indices, 1, "book");
+    CHECK(emit(doc, false) > 0u);
+    CHECK_U64_EQ(count_occurrences("#footnote["), 2u);
+    CHECK(contains("#footnote[First note.] #footnote[Second note.]"));
+}
+
+static void test_typst_footnote_only_page(void) {
+    /* A page that holds nothing but a footnote still has to print it. */
+    const char *pages[] = { "1 A note that fills the page\xC2\xB9.\n" };
+    const uint32_t indices[] = { 0 };
+    const document *doc = build_document(pages, indices, 1, "book");
+    CHECK(emit(doc, false) > 0u);
+    CHECK_U64_EQ(count_occurrences("#footnote["), 1u);
+    CHECK(contains("A note that fills the page"));
+}
+
+static void test_typst_invalid_utf8_byte(void) {
+    /* A byte that is not valid UTF-8 must be copied through instead of
+     * stalling the superscript scanner. */
+    const char *pages[] = { "abc\xFF def.\n" };
+    const uint32_t indices[] = { 0 };
+    const document *doc = build_document(pages, indices, 1, "book");
+    CHECK(emit(doc, false) > 0u);
+    CHECK(contains("abc\xFF def."));
+}
+
+static void test_typst_capacity_failure_is_atomic(void) {
+    /* Every capacity below the required size has to fail as a whole: a
+     * half-written document is never reported as success. */
+    const char *pages[] = {
+        "CHAPTER 1\n\nBody text long enough to need several writes.\n\n$$a + b$$\n",
+        "CHAPTER 2\n\nMore body text.\n\n<table><tr><td>1</td></tr></table>\n",
+    };
+    const uint32_t indices[] = { 0, 1 };
+    const document *doc = build_document(pages, indices, 2, NULL);
+    typst_config config;
+    config.geometry.page_width_pt10 = 4308u;
+    config.geometry.page_height_pt10 = 6462u;
+    config.geometry.margin_x_pt10 = 560u;
+    config.geometry.margin_y_pt10 = 646u;
+    config.geometry.body_pt10 = 105u;
+    config.title = document_title(doc);
+    config.title_length = doc->title_length;
+    config.include_outline = false;
+    char small[4096];
+    uint64_t needed = typst_emit(doc, &config, small, sizeof small);
+    CHECK(needed > 0u);
+    CHECK(needed < sizeof small);
+    for (uint64_t capacity = 1u; capacity < needed; capacity += 1u) {
+        if (typst_emit(doc, &config, small, capacity) != 0u) {
+            CHECK_DETAIL(false, "a partial document was reported as complete");
+        }
+    }
+    CHECK_U64_EQ(typst_emit(doc, &config, small, needed), needed);
+}
+
+static void test_typst_empty_math_block(void) {
+    /* A pair of dollar signs is a block the math path cannot emit; it must be
+     * dropped without breaking the page. */
+    const char *pages[] = { "$$\n\nBody text.\n" };
+    const uint32_t indices[] = { 0 };
+    const document *doc = build_document(pages, indices, 1, "book");
+    CHECK(emit(doc, false) > 0u);
+    CHECK(!contains("#align(center)"));
+    CHECK(contains("Body text."));
+}
+
 void register_typst_emit_tests(void) {
     test_register("typst_header_and_paragraph", test_typst_header_and_paragraph);
     test_register("typst_escapes_markup", test_typst_escapes_markup);
@@ -199,4 +308,12 @@ void register_typst_emit_tests(void) {
     test_register("typst_capacity_failure", test_typst_capacity_failure);
     test_register("typst_title_escaping", test_typst_title_escaping);
     test_register("typst_empty_page", test_typst_empty_page);
+    test_register("typst_escapes_list_markers", test_typst_escapes_list_markers);
+    test_register("typst_superscript_with_wrong_number", test_typst_superscript_with_wrong_number);
+    test_register("typst_repeated_superscript", test_typst_repeated_superscript);
+    test_register("typst_two_unmatched_footnotes", test_typst_two_unmatched_footnotes);
+    test_register("typst_footnote_only_page", test_typst_footnote_only_page);
+    test_register("typst_invalid_utf8_byte", test_typst_invalid_utf8_byte);
+    test_register("typst_capacity_failure_is_atomic", test_typst_capacity_failure_is_atomic);
+    test_register("typst_empty_math_block", test_typst_empty_math_block);
 }
