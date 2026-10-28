@@ -36,9 +36,9 @@ static uint64_t json_skip_whitespace(const char *text, uint64_t length, uint64_t
 
 static bool json_scan_string(const char *text, uint64_t length, uint64_t offset, uint64_t *end) {
     ASSERT(end != NULL);
-    if (offset >= length || text[offset] != '"') {
-        return false;
-    }
+    /* Callers only reach this function when the current character is a quote. */
+    ASSERT(offset < length);
+    ASSERT(text[offset] == '"');
     uint64_t index = offset + 1u;
     while (index < length) {
         char character = text[index];
@@ -104,8 +104,10 @@ static bool json_scan_container(const char *text, uint64_t length, uint64_t offs
 }
 
 static bool json_scan_number(const char *text, uint64_t length, uint64_t offset, uint64_t *end) {
+    /* scan_value only enters here after finding a character to scan. */
+    ASSERT(offset < length);
     uint64_t index = offset;
-    if (index < length && text[index] == '-') {
+    if (text[index] == '-') {
         index += 1u;
     }
     if (index >= length) {
@@ -217,9 +219,8 @@ bool json_scan_value(const char *text, uint64_t length, uint64_t offset, json_va
 
 static bool json_key_matches(const char *text, json_value key_value, const char *key) {
     uint64_t key_length = (uint64_t)strlen(key);
-    if (key_value.end < key_value.begin + 2u) {
-        return false;
-    }
+    /* scan_value only produces string values, which always span two quotes. */
+    ASSERT(key_value.end >= key_value.begin + 2u);
     uint64_t raw_length = key_value.end - key_value.begin - 2u;
     if (raw_length != key_length) {
         return false;
