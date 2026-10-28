@@ -22,5 +22,8 @@ void test_check_u64_eq(uint64_t actual, uint64_t expected, const char *file, uin
 void register_arena_tests(void);
 void register_log_tests(void);
 void register_cli_tests(void);
+void register_base64_tests(void);
+void register_png_tests(void);
+void register_image_tests(void);
 
 #endif

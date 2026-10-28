@@ -7,7 +7,9 @@ if not exist build mkdir build
 clang -std=c23 -Wall -Wextra -pedantic -Werror -Og -g3 -D_CRT_SECURE_NO_WARNINGS ^
   -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc -Itests ^
   src\log.c src\arena.c src\asserts.c src\cli.c src\platform_win32.c ^
+  src\base64.c src\png.c src\image.c ^
   tests\test_main.c tests\test_log.c tests\test_arena.c tests\test_cli.c ^
+  tests\test_base64.c tests\test_png.c tests\test_image.c ^
   -lws2_32 -lshell32 -luser32 -o build\unit_tests.exe
 if errorlevel 1 exit /b 1
 

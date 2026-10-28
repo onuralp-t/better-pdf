@@ -77,6 +77,9 @@ int main(void) {
     register_arena_tests();
     register_log_tests();
     register_cli_tests();
+    register_base64_tests();
+    register_png_tests();
+    register_image_tests();
 
     for (uint32_t index = 0; index < test_entry_count; index += 1) {
         uint32_t before = test_failure_count;
