@@ -196,6 +196,21 @@ static bool document_add_paragraphs(document *doc, const paragraph_list *paragra
             }
         }
 
+        block_kind explicit_kind = BLOCK_PARAGRAPH;
+        if (ocr_detect_table(text, length)) {
+            explicit_kind = BLOCK_TABLE;
+        } else if (ocr_detect_math(text, length)) {
+            explicit_kind = BLOCK_MATH;
+        }
+        if (explicit_kind != BLOCK_PARAGRAPH) {
+            if (!document_push_block(doc, explicit_kind, 0, 0, record->text_offset, record->text_length)) {
+                return false;
+            }
+            content_seen = true;
+            index += 1u;
+            continue;
+        }
+
         ocr_heading_result heading;
         bool next_lowercase = document_next_starts_lowercase(doc, paragraphs, index);
         ocr_classify_heading(text, length, !content_seen, next_lowercase, &heading);
@@ -228,13 +243,7 @@ static bool document_add_paragraphs(document *doc, const paragraph_list *paragra
             continue;
         }
 
-        block_kind kind = BLOCK_PARAGRAPH;
-        if (ocr_detect_table(text, length)) {
-            kind = BLOCK_TABLE;
-        } else if (ocr_detect_math(text, length)) {
-            kind = BLOCK_MATH;
-        }
-        if (!document_push_block(doc, kind, 0, 0, record->text_offset, record->text_length)) {
+        if (!document_push_block(doc, BLOCK_PARAGRAPH, 0, 0, record->text_offset, record->text_length)) {
             return false;
         }
         content_seen = true;
