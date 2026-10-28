@@ -20,6 +20,7 @@
 #define PIPELINE_PATH_CAPACITY 1024u
 #define PIPELINE_SERVER_TIMEOUT_SECONDS 300u
 #define PIPELINE_PROGRESS_EVERY 10u
+#define PIPELINE_SERVER_RESTARTS 1u
 
 static bool pipeline_join(char *output, uint64_t capacity, const char *directory, const char *relative) {
     ASSERT(output != NULL);
@@ -120,6 +121,21 @@ static const char *pipeline_page_word(uint32_t count) {
     return count == 1u ? "page" : "pages";
 }
 
+/* Starts the server and waits until it answers /health. The caller owns the
+ * process afterwards, so this stops it again if it never became ready. */
+static bool pipeline_server_boot(server_process *server, const char *executable, const char *model_path, const char *mmproj_path, uint16_t port, const char *work_dir, char *error, uint64_t error_capacity) {
+    ASSERT(server != NULL);
+    if (!server_process_start(server, executable, model_path, mmproj_path, port, work_dir, error, error_capacity)) {
+        return false;
+    }
+    if (!server_process_wait_ready(server, port, PIPELINE_SERVER_TIMEOUT_SECONDS) || !server_process_running(server)) {
+        (void)snprintf(error, (size_t)error_capacity, "the OCR server did not start; see %s\\llama-server.log", work_dir);
+        server_process_stop(server);
+        return false;
+    }
+    return true;
+}
+
 pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, const pipeline_buffers *buffers, pdf_input *pdf) {
     ASSERT(config != NULL);
     ASSERT(buffers != NULL);
@@ -131,6 +147,10 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
     server.process = NULL;
     server.thread = NULL;
     bool server_started = false;
+    uint32_t server_restarts = 0;
+    char absolute_executable[PIPELINE_PATH_CAPACITY];
+    char absolute_model[PIPELINE_PATH_CAPACITY];
+    char absolute_mmproj[PIPELINE_PATH_CAPACITY];
     double started = platform_monotonic_seconds();
 
     uint32_t page_count = pdf_input_page_count(pdf);
@@ -221,9 +241,6 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
             ERROR("the third-party directory path is too long");
             return PIPELINE_STATUS_ERROR;
         }
-        char absolute_executable[PIPELINE_PATH_CAPACITY];
-        char absolute_model[PIPELINE_PATH_CAPACITY];
-        char absolute_mmproj[PIPELINE_PATH_CAPACITY];
         if (!platform_absolute_path(executable, absolute_executable, sizeof absolute_executable) ||
             !platform_absolute_path(model_path, absolute_model, sizeof absolute_model) ||
             !platform_absolute_path(mmproj_path, absolute_mmproj, sizeof absolute_mmproj)) {
@@ -235,15 +252,11 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
             return PIPELINE_STATUS_ERROR;
         }
         LOG("starting the OCR server for %u uncached %s", missing, pipeline_page_word(missing));
-        if (!server_process_start(&server, absolute_executable, absolute_model, absolute_mmproj, config->port, resolved_work_dir, error, sizeof error)) {
+        if (!pipeline_server_boot(&server, absolute_executable, absolute_model, absolute_mmproj, config->port, resolved_work_dir, error, sizeof error)) {
             ERROR("%s", error);
             return PIPELINE_STATUS_ERROR;
         }
         server_started = true;
-        if (!server_process_wait_ready(&server, config->port, PIPELINE_SERVER_TIMEOUT_SECONDS) || !server_process_running(&server)) {
-            ERROR("the OCR server did not start; see %s\\llama-server.log", resolved_work_dir);
-            goto done;
-        }
         LOG("the OCR server is ready; its output is in %s\\llama-server.log", resolved_work_dir);
     } else if (missing > 0u) {
         LOG("using the OCR server at %s for %u uncached %s", server_url, missing, pipeline_page_word(missing));
@@ -269,7 +282,23 @@ pipeline_status pipeline_run(const cli_config *config, uint32_t max_pixels, cons
             cached += 1;
         } else {
             if (!pipeline_recognize_page(max_pixels, buffers, pdf, &endpoint, index, &text_length)) {
-                goto done;
+                bool crashed = server_started && !server_process_running(&server);
+                if (!crashed || server_restarts >= PIPELINE_SERVER_RESTARTS) {
+                    goto done;
+                }
+                server_restarts += 1;
+                WARN("the OCR server stopped during page %u; restarting it and retrying", index + 1u);
+                server_process_stop(&server);
+                server_started = false;
+                if (!pipeline_server_boot(&server, absolute_executable, absolute_model, absolute_mmproj, config->port, resolved_work_dir, error, sizeof error)) {
+                    ERROR("%s", error);
+                    goto done;
+                }
+                server_started = true;
+                LOG("the OCR server is ready again; retrying page %u", index + 1u);
+                if (!pipeline_recognize_page(max_pixels, buffers, pdf, &endpoint, index, &text_length)) {
+                    goto done;
+                }
             }
             if (!cache_write_page(&page_cache, index, buffers->page_text, text_length)) {
                 ERROR("could not cache the text of page %u", index + 1u);

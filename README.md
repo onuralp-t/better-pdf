@@ -79,6 +79,9 @@ The OCR server is started only when at least one requested page is not cached,
 and it is stopped again when the run ends. If something else already answers on
 the port, the run refuses to start a second server instead of silently talking
 to a server it does not own; pass `--server-url` to reuse that one on purpose.
+Its output goes to `<work>/llama-server.log`, the typst output to
+`<work>/typst.log`, and the generated markup to `<work>/book.typ`, so a failed
+run can be inspected without rerunning the model.
 
 ## Interrupting a run
 
@@ -92,10 +95,11 @@ Manager, a failed assertion, or a crash takes them down with the parent. No
 Cached pages are written to a temporary file and renamed into place, so an
 interrupt can never leave a truncated page that a later run would read as
 complete. Because every finished page is already cached, restarting the run
-resumes where it stopped. Its output goes to
-`<work>/llama-server.log`, the typst output to `<work>/typst.log`, and the
-generated markup to `<work>/book.typ`, so a failed run can be inspected without
-rerunning the model.
+resumes where it stopped.
+
+A long run also survives the model dying: if llama-server exits while a page is
+being recognized, the pipeline restarts it once and retries that page. The
+pages recognized before the crash are already cached, so nothing is repeated.
 
 ## The work directory and the cache
 
