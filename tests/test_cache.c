@@ -121,6 +121,54 @@ static void test_cache_write_replaces_without_leaving_temporary(void) {
     CHECK(memcmp(text, "second", 6u) == 0);
 }
 
+static void test_cache_rejects_overlong_entry_paths(void) {
+    cache value;
+    memset(&value, 0, sizeof value);
+    memset(value.directory, 'a', sizeof value.directory - 1u);
+    value.directory[sizeof value.directory - 1u] = '\0';
+    value.ready = true;
+
+    char buffer[16];
+    uint64_t length = 0;
+    bool found = false;
+    CHECK(!cache_read_page(&value, 0, buffer, sizeof buffer, &length, &found));
+    CHECK(!cache_write_page(&value, 0, "x", 1u));
+    CHECK(!cache_write_manifest(&value, "x", 1u));
+}
+
+static void test_cache_rejects_overlong_temporary_path(void) {
+    cache value;
+    memset(&value, 0, sizeof value);
+    /* The page path just fits, but appending ".tmp" does not. */
+    memset(value.directory, 'a', CACHE_PATH_CAPACITY - 11u);
+    value.directory[CACHE_PATH_CAPACITY - 11u] = '\0';
+    value.ready = true;
+    CHECK(!cache_write_page(&value, 0u, "x", 1u));
+}
+
+static void test_cache_write_failure_is_reported(void) {
+    /* The directory was deleted after the cache was opened, so the write has
+     * nowhere to go and must be reported rather than ignored. */
+    cache value;
+    memset(&value, 0, sizeof value);
+    (void)snprintf(value.directory, sizeof value.directory, "tests/tmp/cache-vanished/pages");
+    value.ready = true;
+    CHECK(!cache_write_page(&value, 0u, "x", 1u));
+}
+
+static void test_cache_write_fails_when_target_is_a_directory(void) {
+    cache value;
+    CHECK(cache_ready(&value, TEST_CACHE_KEY + 9u));
+    char path[CACHE_PATH_CAPACITY];
+    CHECK(cache_page_path(&value, 12u, path, sizeof path));
+    CHECK(platform_create_directories(path));
+    CHECK(!cache_write_page(&value, 12u, "x", 1u));
+
+    char temporary[CACHE_PATH_CAPACITY];
+    (void)snprintf(temporary, sizeof temporary, "%s.tmp", path);
+    CHECK(!platform_path_exists(temporary));
+}
+
 void register_cache_tests(void) {
     test_register("cache_key_is_stable_and_sensitive", test_cache_key_is_stable_and_sensitive);
     test_register("cache_paths", test_cache_paths);
@@ -130,4 +178,8 @@ void register_cache_tests(void) {
     test_register("cache_init_rejects_long_work_dir", test_cache_init_rejects_long_work_dir);
     test_register("cache_init_reports_directory_failure", test_cache_init_reports_directory_failure);
     test_register("cache_write_replaces_without_leaving_temporary", test_cache_write_replaces_without_leaving_temporary);
+    test_register("cache_rejects_overlong_entry_paths", test_cache_rejects_overlong_entry_paths);
+    test_register("cache_rejects_overlong_temporary_path", test_cache_rejects_overlong_temporary_path);
+    test_register("cache_write_failure_is_reported", test_cache_write_failure_is_reported);
+    test_register("cache_write_fails_when_target_is_a_directory", test_cache_write_fails_when_target_is_a_directory);
 }
