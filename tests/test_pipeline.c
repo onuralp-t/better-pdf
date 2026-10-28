@@ -178,12 +178,78 @@ static void test_pipeline_resolve_max_pixels(void) {
     CHECK(strstr(error, "not found") != NULL);
 }
 
+static void test_pipeline_file_stem_keeps_non_pdf_extensions(void) {
+    /* Stripping is driven by the four characters before the end: an extension
+     * that merely looks close to .pdf must stay part of the name. */
+    char buffer[64];
+    CHECK(pipeline_file_stem("notes.pbf", buffer, sizeof buffer));
+    CHECK_STR_EQ(buffer, "notes.pbf");
+    CHECK(pipeline_file_stem("notes.pdx", buffer, sizeof buffer));
+    CHECK_STR_EQ(buffer, "notes.pdx");
+    CHECK(pipeline_file_stem("notes.PDX", buffer, sizeof buffer));
+    CHECK_STR_EQ(buffer, "notes.PDX");
+    CHECK(pipeline_file_stem("notes.pDf", buffer, sizeof buffer));
+    CHECK_STR_EQ(buffer, "notes");
+}
+
+static bool pipeline_build_mmproj_with_key(const char *directory, const char *key, uint32_t value) {
+    char path[512];
+    (void)snprintf(path, sizeof path, "%s\\PaddleOCR-VL-1.6-GGUF\\PaddleOCR-VL-1.6-GGUF-mmproj.gguf", directory);
+    FILE *file = fopen(path, "wb");
+    if (file == NULL) {
+        return false;
+    }
+    (void)fwrite("GGUF", 1, 4, file);
+    pipeline_write_u32(file, 3u);
+    pipeline_write_u64(file, 0u);
+    pipeline_write_u64(file, 1u);
+    pipeline_write_string(file, key);
+    pipeline_write_u32(file, 4u);
+    pipeline_write_u32(file, value);
+    return fclose(file) == 0;
+}
+
+static void test_pipeline_resolve_max_pixels_reports_bad_files(void) {
+    char error[512];
+    uint32_t max_pixels = 0;
+
+    /* A third-party directory that cannot be addressed at all. */
+    static char long_directory[1200];
+    memset(long_directory, 'd', sizeof long_directory - 1u);
+    long_directory[sizeof long_directory - 1u] = '\0';
+    CHECK(!pipeline_resolve_max_pixels(long_directory, 0u, &max_pixels, error, sizeof error));
+    CHECK(strstr(error, "too long") != NULL);
+
+    /* A projector whose header cannot be read. */
+    CHECK(platform_create_directories("tests/tmp/badtp/PaddleOCR-VL-1.6-GGUF"));
+    FILE *file = fopen("tests/tmp/badtp\\PaddleOCR-VL-1.6-GGUF\\PaddleOCR-VL-1.6-GGUF-mmproj.gguf", "wb");
+    CHECK(file != NULL);
+    if (file != NULL) {
+        CHECK(fwrite("NOPE", 1, 4, file) == 4u);
+        CHECK(fclose(file) == 0);
+    }
+    CHECK(!pipeline_resolve_max_pixels("tests/tmp/badtp", 0u, &max_pixels, error, sizeof error));
+    CHECK(strstr(error, "could not read the pixel budget") != NULL);
+
+    /* A readable projector that simply has no budget key. */
+    CHECK(pipeline_build_mmproj_with_key("tests/tmp/badtp", "clip.vision.image_min_pixels", 112896u));
+    CHECK(!pipeline_resolve_max_pixels("tests/tmp/badtp", 0u, &max_pixels, error, sizeof error));
+    CHECK(strstr(error, "has no clip.vision.image_max_pixels") != NULL);
+
+    /* The key is there and usable. */
+    CHECK(pipeline_build_mmproj_with_key("tests/tmp/badtp", "clip.vision.image_max_pixels", 777u));
+    CHECK(pipeline_resolve_max_pixels("tests/tmp/badtp", 0u, &max_pixels, error, sizeof error));
+    CHECK_U64_EQ(max_pixels, 777u);
+}
+
 void register_pipeline_tests(void) {
     test_register("pipeline_select_range", test_pipeline_select_range);
     test_register("pipeline_work_directory", test_pipeline_work_directory);
     test_register("pipeline_file_stem", test_pipeline_file_stem);
+    test_register("pipeline_file_stem_keeps_non_pdf_extensions", test_pipeline_file_stem_keeps_non_pdf_extensions);
     test_register("pipeline_plan_sizes", test_pipeline_plan_sizes);
     test_register("pipeline_plan_sizes_rejects_absurd_budget", test_pipeline_plan_sizes_rejects_absurd_budget);
     test_register("pipeline_request_build", test_pipeline_request_build);
     test_register("pipeline_resolve_max_pixels", test_pipeline_resolve_max_pixels);
+    test_register("pipeline_resolve_max_pixels_reports_bad_files", test_pipeline_resolve_max_pixels_reports_bad_files);
 }
