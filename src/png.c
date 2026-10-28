@@ -10,8 +10,13 @@
 #define PNG_ZLIB_HEADER_BYTES 2u
 #define PNG_ADLER_BYTES 4u
 
+/* ASSERT only type-checks its expression in release and coverage builds, so a
+ * short-circuit branch there could never be taken. Both comparisons are plain
+ * values, so they can be joined without a branch. */
+#define PNG_ASSERT_MODE(mode) ASSERT(((uint32_t)(mode) == PNG_MODE_GRAY) | ((uint32_t)(mode) == PNG_MODE_RGB))
+
 static uint32_t png_bytes_per_pixel(png_mode mode) {
-    ASSERT(mode == PNG_MODE_GRAY || mode == PNG_MODE_RGB);
+    PNG_ASSERT_MODE(mode);
     return mode == PNG_MODE_GRAY ? 1u : 3u;
 }
 
@@ -55,7 +60,7 @@ uint32_t png_adler32(const uint8_t *data, uint64_t length) {
 uint64_t png_encoded_capacity(uint32_t width, uint32_t height, png_mode mode) {
     ASSERT(width > 0);
     ASSERT(height > 0);
-    ASSERT(mode == PNG_MODE_GRAY || mode == PNG_MODE_RGB);
+    PNG_ASSERT_MODE(mode);
 
     uint64_t filtered_length = png_filtered_length(width, height, mode);
     uint64_t zlib_length = PNG_ZLIB_HEADER_BYTES + filtered_length +
@@ -99,10 +104,8 @@ static void png_copy_filtered_range(const uint8_t *pixels, uint64_t row_bytes, u
         uint64_t take = end - offset < available ? end - offset : available;
         if (column == 0u) {
             output[0] = 0u;
-            if (take > 1u) {
-                for (uint64_t index = 0; index < take - 1u; index += 1) {
-                    output[1u + index] = pixels[row * row_bytes + index];
-                }
+            for (uint64_t index = 0; index < take - 1u; index += 1) {
+                output[1u + index] = pixels[row * row_bytes + index];
             }
         } else {
             for (uint64_t index = 0; index < take; index += 1) {
