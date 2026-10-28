@@ -25,6 +25,10 @@ void log_set_sink(FILE *sink) {
     log_sink_file = sink;
 }
 
+bool log_ready(void) {
+    return log_sink_file != NULL;
+}
+
 void log_emit(log_level level, const char *file, uint32_t line, const char *format, ...) {
     ASSERT(log_sink_file != NULL);
     ASSERT(format != NULL);

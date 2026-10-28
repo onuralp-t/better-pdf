@@ -6,6 +6,11 @@
 [[noreturn]] void assert_fail(const char *file, uint32_t line, const char *expression) {
     ASSERT(file != NULL);
     ASSERT(expression != NULL);
+    /* A failure before log_init must still report rather than recurse through
+     * the logger's own assertion. */
+    if (!log_ready()) {
+        log_init(stderr);
+    }
     log_emit(LOG_LEVEL_ERROR, file, line, "assertion failed: %s", expression);
 #if defined(BETTER_PDF_RELEASE)
     /* Release builds never call this function; abort keeps it total anyway. */

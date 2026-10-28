@@ -13,6 +13,7 @@ static void log_capture(FILE *sink, char *buffer, uint64_t capacity) {
 }
 
 static void test_log_formats_info_and_warn(void) {
+    CHECK(log_ready());
     FILE *sink = test_open_temporary("log_info.txt");
     CHECK(sink != NULL);
     log_set_sink(sink);
@@ -24,6 +25,7 @@ static void test_log_formats_info_and_warn(void) {
     CHECK(strstr(buffer, "plain message 7") != NULL);
     CHECK(strstr(buffer, "WARN") != NULL);
     CHECK(strstr(buffer, "careful now") != NULL);
+    log_set_sink(stderr);
     fclose(sink);
 }
 
@@ -37,6 +39,7 @@ static void test_log_error_includes_location(void) {
     CHECK(strstr(buffer, "ERROR") != NULL);
     CHECK(strstr(buffer, "test_log.c:") != NULL);
     CHECK(strstr(buffer, "broken 42") != NULL);
+    log_set_sink(stderr);
     fclose(sink);
 }
 
@@ -52,6 +55,7 @@ static void test_log_truncates_long_messages(void) {
     log_capture(sink, buffer, sizeof buffer);
     CHECK(strstr(buffer, "xxxx") != NULL);
     CHECK(strlen(buffer) < 2048u);
+    log_set_sink(stderr);
     fclose(sink);
 }
 
