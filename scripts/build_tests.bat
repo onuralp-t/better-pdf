@@ -32,5 +32,13 @@ clang -std=c23 -Wall -Wextra -pedantic -Werror -D_CRT_SECURE_NO_WARNINGS %FLAGS%
   -lws2_32 -lshell32 -luser32 -o build\unit_tests.exe
 if errorlevel 1 exit /b 1
 
+if /I "%MODE%"=="debug" call :copy_asan_runtime
 echo built build\unit_tests.exe (%MODE%)
+exit /b 0
+
+:copy_asan_runtime
+rem The sanitized image imports the ASan runtime from clang's resource
+rem directory. Copy the matching DLL next to the exe so an older copy that
+rem sits earlier on PATH cannot be loaded instead.
+for /f "delims=" %%r in ('clang -print-resource-dir') do copy /Y "%%r\lib\windows\clang_rt.asan_dynamic-x86_64.dll" build\ >nul
 exit /b 0
