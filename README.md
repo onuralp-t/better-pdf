@@ -33,6 +33,9 @@ Everything is vendored under `third_party/`, pinned and committed:
 
 The build needs clang (tested with 23.x) with the MSVC linker available.
 
+- NOTE: You need to download and extract the PadlleOCR model into the specified third_party directory.
+- NOTE 2: Vendored llama.cpp build is CPU only because I'm on a weak laptop, should be relatively easy to modify it to use GPU inference.
+
 ## Build
 
 Two build modes:
